@@ -18,12 +18,12 @@
     const vertexPositionBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, vertexPositionBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
-        0.0, 0.5,
-        0.5, -0.5,
-        -0.5, -0.5,
-        0.0, -0.5,
-        0.5, 0.5,
-        -0.5, 0.5
+        0.0, 0.5, 0.2,
+        0.5, -0.5, 0.2,
+        -0.5, -0.5, 0.2,
+        0.0, -0.5, 0.8,
+        0.5, 0.5, 0.8,
+        -0.5, 0.5, 0.8
     ]), gl.STATIC_DRAW);
 
     /*
@@ -88,34 +88,25 @@
         const attributeLocation = gl.getAttribLocation(program, "position");
         gl.enableVertexAttribArray(attributeLocation);
         gl.bindBuffer(gl.ARRAY_BUFFER, vertexPositionBuffer);
-        gl.vertexAttribPointer(attributeLocation, 2, gl.FLOAT, false, 0, 0);
+        gl.vertexAttribPointer(attributeLocation, 3, gl.FLOAT, false, 0, 0);
 
         requestAnimationFrame(render);
     });
 
-
-    let x = 0;
-    let y = 0;
-    let time = 0;
     /*
      * レンダリング
      */
+    gl.enable(gl.DEPTH_TEST);
     const render = _ => {
         requestAnimationFrame(render);
         gl.clearColor(0,0,0,1);
-        gl.clear(gl.COLOR_BUFFER_BIT);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         const colorLocation = gl.getUniformLocation(program, "color");
         const translationLocation = gl.getUniformLocation(program, "translation");
         gl.uniform3f(colorLocation, 1,0,0);
-        gl.uniform2f(translationLocation, x, y);
         gl.drawArrays(gl.TRIANGLES, 0, 3);
         gl.uniform3f(colorLocation, 0,0,1);
-        gl.uniform2f(translationLocation, -x, -y);
         gl.drawArrays(gl.TRIANGLES, 3, 3);
         gl.flush();
-
-        x += Math.sin(time * 5) * 0.05;
-        y += Math.cos(time * 7) * 0.05;
-        time += 0.01;
     };
 })();
