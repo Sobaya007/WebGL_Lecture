@@ -94,19 +94,70 @@
     });
 
     /*
+     * 行列計算
+     */
+
+    //OpenGLの仕様上、見た目は転置してるように見えるけどまぁそういうもん。
+    const mTranslate = (x,y,z) => [
+        1,0,0,0,
+        0,1,0,0,
+        0,0,1,0,
+        x,y,z,1
+    ];
+
+    const mRotate = (x,y,z,t) => {
+        const c = Math.cos(t);
+        const s = Math.sin(t);
+        return [
+            x*x*(1-c)+c, x*y*(1-c)+s*z, z*x*(1-c)-s*y, 0,
+            x*y*(1-c)-s*z, y*y*(1-c)+c, y*z*(1-c)+s*x, 0,
+            z*x*(1-c)+s*y, y*z*(1-c)-s*x, z*z*(1-c)+c, 0,
+            0,0,0,1
+        ];
+    };
+    const mScale = (x,y,z) => [
+        x,0,0,0,
+        0,y,0,0,
+        0,0,z,0,
+        0,0,0,1
+    ];
+
+    const mult = (a,b) => {
+        const res = [];
+        for (let i = 0; i < 4; i++) {
+            for (let j = 0; j < 4; j++) {
+                let m = 0;
+                for (let k = 0; k < 4; k++) {
+                    m += a[i*4+k] * b[k*4+j];
+                }
+                res.push(m);
+            }
+        }
+        return res;
+    };
+
+    /*
      * レンダリング
      */
     gl.enable(gl.DEPTH_TEST);
+    let m1 = mTranslate(0.5, 0, 0);
+    let m2 = mTranslate(0,0,0);
+    const R = mRotate(0,0,1, 0.1);
     const render = _ => {
         requestAnimationFrame(render);
         gl.clearColor(0,0,0,1);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         const colorLocation = gl.getUniformLocation(program, "color");
-        const translationLocation = gl.getUniformLocation(program, "translation");
+        const matrixLocation = gl.getUniformLocation(program, "matrix");
+        gl.uniformMatrix4fv(matrixLocation, false, m1);
         gl.uniform3f(colorLocation, 1,0,0);
         gl.drawArrays(gl.TRIANGLES, 0, 3);
+        gl.uniformMatrix4fv(matrixLocation, false, m2);
         gl.uniform3f(colorLocation, 0,0,1);
         gl.drawArrays(gl.TRIANGLES, 3, 3);
         gl.flush();
+
+        m1 = mult(m1, R);
+        m2 = mult(m2, R);
     };
 })();
