@@ -163,6 +163,16 @@
         ];
     };
 
+    const perspective = (asp, fov, near, far) => {
+        const t = Math.tan(fov / 2);
+        return [
+            1 / (asp * t),0,0,0,
+            0,1/t,0,0,
+            0,0,(near+far) / (near-far), -1,
+            0,0,2*near*far/(near-far),0
+        ];
+    };
+
     const mult = (a,b) => {
         const res = [];
         for (let i = 0; i < 4; i++) {
@@ -181,7 +191,7 @@
      * レンダリング
      */
     gl.enable(gl.DEPTH_TEST);
-    const eye = vec3(0,0.2,0.3);
+    const eye = vec3(0, 0.4, 1);
     const c = Math.cos(0.01);
     const s = Math.sin(0.01);
     const render = _ => {
@@ -190,16 +200,19 @@
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         const colorLocation = gl.getUniformLocation(program, "color");
         const viewMatrixLocation = gl.getUniformLocation(program, "viewMatrix");
+        const projMatrixLocation = gl.getUniformLocation(program, "projMatrix");
 
         /*
          * カメラ計算
          */
         [eye.x, eye.z] = [eye.x * c - eye.z * s, eye.x * s + eye.z * c];
-        const forward = normalize(vec3(-eye.x, -eye.y, -eye.z));
+        const forward = normalize(vec3(eye.x, eye.y, eye.z));
         const up = vec3(0,1,0);
         const viewMatrix = lookAt(eye, forward, up);
+        const projMatrix = perspective(1, Math.PI / 2, 0.1, 5);
 
         gl.uniformMatrix4fv(viewMatrixLocation, false, viewMatrix);
+        gl.uniformMatrix4fv(projMatrixLocation, false, projMatrix);
         gl.uniform3f(colorLocation, 1,0,0);
         gl.drawArrays(gl.TRIANGLES, 0, 3);
         gl.uniform3f(colorLocation, 0,0,1);

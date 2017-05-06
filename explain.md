@@ -1,97 +1,135 @@
 # OpenGL講習会
 
-## 3D感をもっと出す
-さて、現状はまだ3D感がないです。
-先ほど覚えた行列計算を利用して、今度はカメラという概念を導入します。
-カメラという概念に必要なのは、「位置」と「姿勢」です。姿勢とは、要するにカメラがどういう向きに置いてあるかです。
-位置はもちろん3次元ベクトルを使えば表現できますが、姿勢というのも「どっちを向いているか」を表す3次元ベクトルで表現できるでしょうか？
-答えはNOです。「どっちを向いているか」があるだけでは、カメラはその方向を軸として回転する自由度を得てしまいます。
-解決策として、「カメラの上方向はどっちを向いているか」という情報を与えてやるというものがあります。
-「カメラの前方向のベクトル」と「カメラの上方向のベクトル」の2つでカメラの姿勢は一意に定まります。
-以上から、カメラを表すには3つのベクトルがあればいいことがわかりました。で、これからどうやってカメラをOpenGLの世界に持っていきましょう？
+## 3D感をもっともっと出す
+次の3D感はズバリ、遠近法です。
+ご存知の通り我々の世界では遠くのものほど小さく、近くのものほど大きく見えます。
+ですが残念ながらいまの状態ではまったくそんなことにはなっていません。
+これをOpenGLが勝手にやってくれたりはしないからです。
+自分でやるしかないのです。
 
-再三言いますが、OpenGLでできるのは三角形を描くことだけです。ということは、カメラの状態に応じて三角形の頂点座標をいい感じに変換するしかありません。つまり、各頂点座標を「カメラから見た座標」に変換するのです。
-先ほどからVBOに指定している座標を置いている空間を**ワールド空間**と言い、カメラから見た座標を置く空間を**ビュー空間**と言います。
-ワールド空間上の座標をビュー空間上の座標に変換する行列を考えましょう。
+## 射影変換
+遠近感を出すために遠くのものほど小さくなるような変換、これのことを**射影変換**と言います。
+今からこの射影変換を行う行列を作っていきます。
 
-方針としてはこうです。
-ワールド空間上にカメラがあります。
-![](trans1.png)
-まず、カメラの位置を空間の原点とするような平行移動を施します。
-![](trans2.png)
-次に、カメラの前方向と上方向に沿うように座標軸を回転します。
-![](trans3.png)
-この2段階の変換を各頂点に対して施せば、頂点座標がビュー空間に移ります。
+### カメラのモデル化
+カメラの映す範囲をまず考えてみましょう。
+イメージ的にはこんな範囲で物を映す気がします。
+![](gl1.png)
+円錐形ですね。本当はこれが映す範囲ということにしたいのですが、残念ながらこれを採用してしまうと計算が面倒なことになってしまうのです。なので$\dagger$ちょっと$\dagger$似てるかんじでこんな形ってことにします。
+![](gl6.png)
+わかりますかね？四角錘の上削ったバージョンです。
+この範囲に収まるものを描画することにしましょう。
 
-この図は2次元ですが、実際には3次元です。そのため、カメラの前方向と上方向だけでなく横方向も座標軸に沿うようにしなければならず、横方向のベクトルを求める必要があります。
-ですが2つのベクトルがもうあるので、あとはこれに垂直なベクトルをとればいいだけです。これは外積を使えば出てきますね。
+### OpenGLの描画領域
+OpenGLの描画領域は(1,1)から(-1,-1)の範囲であると2Dの時説明しました。この範囲外にある部分は描画されません。
+これが3Dになると、Zの値にも制限がつきます。3Dの場合には(1,1,1)から(-1,-1,-1)の範囲にある立方体領域にある部分しか画面に描画されません。
 
-ではカメラの位置を$\vec e$、カメラの姿勢を表すベクトル(基底ベクトル)をそれぞれ$\vec \alpha, \vec \beta,  \vec \gamma$として行列を作ってみましょう。
-まず、1つ目の変換は簡単ですね。$\vec e$が原点に来るように平行移動すればいいので、
+ということは、先の四角錘の内部の空間を(-1,-1,-1) ~ (1,1,1)の立方体領域に圧縮できればカメラから遠いものは勝手に小さくなるし描画領域も整うしで一石二鳥ってかんじがします。
+
+### 描画の流れ
+てことで、3D空間上のものがどうやって画面上に現れるかを順に見ていってみましょう。
+
+![](gl3.png)
+
+このようになっているとします。黒いのがカメラで、赤と青が描画される物体です。
+まず、これを押しつぶして直方体にします。
+
+![](gl4.png)
+
+このとき、空間内部の物体も同様に押しつぶされます。これにより、遠くのものほど小さくなります。
+次に直方体を前後方向に押しつぶして2次元にしてしまいます。
+
+![](gl5.png)
+
+このとき、深度テストにより2物体以上が被っている場合は近いものを優先します。
+こんなかんじの流れになります。では行列を計算してみましょう。
+
+### カメラのパラメータ
+カメラの描画領域を四角錘っぽい形にしましたが、あの形状を表すために4つのパラメータを導入します。
+
+- カメラのy方向の視野角 
+Field Of View の略でFOVと呼ばれています。
+- アスペクト比 
+底面の幅 / 底面の高さ
+- 近い側の底面を表すz座標 
+near clip と呼ばれます。
+- 遠い側の底面を表すz座標 
+far clip と呼ばれます。
+
+![](gl7.png)
+
+これだけあれば描画領域の形を定義できそうです。
+
+### 行列計算
+では行列を作っていきます。とりあえず前提として、すべての座標がビュー空間にある、つまりカメラの場所にちょうど原点があり、座標軸とカメラの向きは揃っているということにしてください。
+注意されたいのは、この座標系が**右手系か左手系か**ということです。x,y,z軸が親指、人差し指、中指に対応するとき、かならず右手か左手かのどちらかにしか合いません。直感的に考えるとx,y,z軸はそれぞれ右、上、奥が正方向となる気がしますが、これは左手系です。一方、OpenGLや数学で扱う座標系は右手系です。この違いを解消するために、z軸が手前を向いているというちょっと気持ち悪い設定にしなければなりません。
+するとy座標はz座標が小さいほど縮小されます。
+z = -$nearClip$のとき、yは$[-nearClip \times \tan(\frac {FOV} 2), nearClip \times \tan(\frac{FOV} 2)]$の範囲を[-1,1]に縮小し、
+z = -$farClip$のとき、yは$[-farClip \times \tan(\frac {FOV} 2), farClip \times \tan(\frac{FOV} 2)]$の範囲を[-1,1]に縮小すればいいということです。
+$y \mapsto \frac y {-z \times \tan(\frac {FOV} 2)}$
+同様に、x座標も
+$x \mapsto \frac x {-z \times aspect \times \tan(\frac {FOV} 2)}$
+とすればいいのがわかります。
+
+ここでおや？と思ってくださるでしょうか？xとyの変換には**分母**にzが入っています。これの意味するところは、**x,yの変換は線形変換ではない**ということです。つまり、行列にできません。
+
+ですが思い出してください。我々は4次元ベクトルと3次元ベクトルを行き来するためのあるルールを作っていました。
+$(x,y,z,w) \mapsto (\frac x w, \frac y w, \frac z w)$
+今まで頂点シェーダのgl_Positionには4次元ベクトルを入れていました。この4次元ベクトルは上記の変換を**自動で**行い、3次元ベクトルとして内部で処理されます。これを利用すると、予めwに-zを入れておけば割り算できるということになりますよね？
+つまり、こうです
+$(x,y,z,1) \mapsto (\frac x {aspect \times \tan(\frac {FOV} 2)}, \frac y {\tan(\frac {FOV} 2)}, ?, -z)$
+あとの?の部分に何が入るか考えましょう。?の値は以下の条件が掛かります。
+- $z = -nearClip$のとき$\frac ? {-z} = -1$
+- $z = -farClip$のとき$\frac ? {-z} = 1$
+- ?はzの一次式($\Rightarrow az + b = ?$)
+
+以上の条件から連立方程式
 $$$
-M_1 = \left( \begin{array}{cccc}
-1 & 0 & 0 & -e_x \\
-0 & 1 & 0 & -e_y \\
-0 & 0 & 1 & -e_z \\
-0 & 0 & 0 & 1
+a \times -nearClip + b = -1 \times nearClip \\
+a \times -farClip + b = 1 \times farClip
+$$$
+を解くと、
+$$$
+? = \frac {-(farClip + nearClip)z - 2 farClip \times nearClip}{farClip - nearClip}
+$$$
+ということで後はこれを行う行列を作ればいいわけですね。
+
+$$$
+\left( \begin{array}{cccc} 
+\frac 1 {aspect \times \tan(\frac {FOV} 2)} & 0 & 0 & 0 \\
+0 & \frac 1 {tan(\frac {FOV} 2)} & 0 & 0 \\
+0 & 0 & \frac {nearClip + farClip} {nearClip - farClip} & \frac{2farClip \times nearClip} {nearClip - farClip} \\
+0 & 0 & -1 & 0
 \end{array} \right)
 $$$
-です。
-2つ目の変換は標準基底からある正規直交基底への基底変換ですので、
-$$$
-M_2 = \left( \begin{array}{cccc}
-\alpha_x & \alpha_y & \alpha_z & 0 \\
-\beta_x & \beta_y & \beta_z & 0 \\
-\gamma_x & \gamma_y & \gamma_z & 0 \\
-0 & 0 & 0 & 1
-\end{array} \right)
-$$$
-です。
-これらを順に適用するような行列を作ればいいので、
-$$$
-M_2 \times M_1 = \left( \begin{array}{cccc}
-\alpha_x & \alpha_y & \alpha_z & -\vec e \cdot \vec \alpha \\
-\beta_x & \beta_y & \beta_z & -\vec e \cdot \vec \beta \\
-\gamma_x & \gamma_y & \gamma_z & -\vec e \cdot \vec \gamma \\
-0 & 0 & 0 & 1
-\end{array} \right)
-$$$
-ですね。
-これを用意しておけば、カメラから見た頂点座標が計算できるわけです。
+これが射影変換行列です。できたー！
 
 ```javascript
-const lookAt = (eye, forward, up) => {
-    const side = normalize(cross(up, forward));
-    up = normalize(cross(forward, side));
+const perspective = (asp, fov, near, far) => {
+    const t = Math.tan(fov / 2);
     return [
-        side.x, up.x, forward.x, 0,
-        side.y, up.y, forward.y, 0,
-        side.z, up.z, forward.z, 0,
-        -dot(eye, side), -dot(eye, up), -dot(eye, forward), 1
+        1 / (asp * t),0,0,0,
+        0,1/t,0,0,
+        0,0,(near+far) / (near-far), -1,
+        0,0,2*near*far/(near-far),0
     ];
 };
 ...
-const forward = normalize(vec3(-eye.x, -eye.y, -eye.z));
-const up = vec3(0,1,0);
-const viewMatrix = lookAt(eye, forward, up);
-
-gl.uniformMatrix4fv(viewMatrixLocation, false, viewMatrix);
-gl.uniform3f(colorLocation, 1,0,0);
-gl.drawArrays(gl.TRIANGLES, 0, 3);
-gl.uniform3f(colorLocation, 0,0,1);
-gl.drawArrays(gl.TRIANGLES, 3, 3);
-gl.flush();
-
+const projMatrixLocation = gl.getUniformLocation(program, "projMatrix");
+...
+const forward = normalize(vec3(eye.x, eye.y, eye.z));
+...
+const projMatrix = perspective(1, Math.PI / 2, 0.1, 5);
+...
+gl.uniformMatrix4fv(projMatrixLocation, false, projMatrix);
 ```
+
 ```glsl
 attribute vec3 position;
 uniform mat4 viewMatrix;
+uniform mat4 projMatrix;
 
 void main() {
-    gl_Position = viewMatrix * vec4(position, 1.);
+    gl_Position = projMatrix * viewMatrix * vec4(position, 1.);
 }
 ```
-eyeという変数はカメラの位置を表すベクトルです。forwardがカメラの前方向を表すベクトル、upが上方向を表すベクトルです。
-この時点ではforwardとupは直交していませんが、lookAtの中で直交するように補正してあります。
-normalizeやdotなどの各種ベクトル用関数は用意しておきました。
-normalizeがベクトルの長さを1にする関数、dotが内積、crossが外積です。
