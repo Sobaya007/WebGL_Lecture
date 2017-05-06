@@ -1,145 +1,97 @@
 # OpenGL講習会
 
-## 数学のはなし
-さて、3D感をもっと推し進めていきたいのですが、その前に避けては通れない話題があります。
-頂点シェーダの話です。
-先ほど、Uniform変数を用いて三角形を移動させたりいろいろしましたが、アレは実は一般的な手法ではありません。
-普通3Dグラフィックスで扱う変換は主に3つです。
-- 平行移動
-- 回転
-- 拡大縮小
+## 3D感をもっと出す
+さて、現状はまだ3D感がないです。
+先ほど覚えた行列計算を利用して、今度はカメラという概念を導入します。
+カメラという概念に必要なのは、「位置」と「姿勢」です。姿勢とは、要するにカメラがどういう向きに置いてあるかです。
+位置はもちろん3次元ベクトルを使えば表現できますが、姿勢というのも「どっちを向いているか」を表す3次元ベクトルで表現できるでしょうか？
+答えはNOです。「どっちを向いているか」があるだけでは、カメラはその方向を軸として回転する自由度を得てしまいます。
+解決策として、「カメラの上方向はどっちを向いているか」という情報を与えてやるというものがあります。
+「カメラの前方向のベクトル」と「カメラの上方向のベクトル」の2つでカメラの姿勢は一意に定まります。
+以上から、カメラを表すには3つのベクトルがあればいいことがわかりました。で、これからどうやってカメラをOpenGLの世界に持っていきましょう？
 
-これらはすべて**線形変換**です。線形変換は行列の掛け算に落とし込むことができます。
-すなわち、変換の種類によってUniformを分けたりせずただ1つの行列を渡し、頂点に掛けるだけで事足りるのです。
+再三言いますが、OpenGLでできるのは三角形を描くことだけです。ということは、カメラの状態に応じて三角形の頂点座標をいい感じに変換するしかありません。つまり、各頂点座標を「カメラから見た座標」に変換するのです。
+先ほどからVBOに指定している座標を置いている空間を**ワールド空間**と言い、カメラから見た座標を置く空間を**ビュー空間**と言います。
+ワールド空間上の座標をビュー空間上の座標に変換する行列を考えましょう。
 
-### 行列を用いた変換
-行列を用いて上記3つの変換を行う場合、3次元なら4 $\times$ 4の行列を使います。
-「なぜ4 $\times$ 4？」と思うかもしれませんが、結論から言ってしまえば3 $\times$ 3だと足りないからです。
+方針としてはこうです。
+ワールド空間上にカメラがあります。
+![](trans1.png)
+まず、カメラの位置を空間の原点とするような平行移動を施します。
+![](trans2.png)
+次に、カメラの前方向と上方向に沿うように座標軸を回転します。
+![](trans3.png)
+この2段階の変換を各頂点に対して施せば、頂点座標がビュー空間に移ります。
 
-そして、具体的な行列の話をする前に1つお約束があります。
-これから扱う計算はもちろん3次元上でいろいろするためのものですが、3次元のベクトルだと都合の悪いことがあるので、4次元ベクトルも扱いたいのです。そこで、3次元ベクトル(x,y,z)と4次元ベクトル(x,y,z,w)の間に変換方法を定義しておきます。
+この図は2次元ですが、実際には3次元です。そのため、カメラの前方向と上方向だけでなく横方向も座標軸に沿うようにしなければならず、横方向のベクトルを求める必要があります。
+ですが2つのベクトルがもうあるので、あとはこれに垂直なベクトルをとればいいだけです。これは外積を使えば出てきますね。
 
-> 3次元　$\mapsto$ 4次元
-> $(x,y,z) \mapsto (x,y,z,1)$
-
-> 4次元 $\mapsto$ 3次元
-> $(x,y,z,w) \mapsto (\frac x w, \frac y w, \frac z w)$
-
-これはルールとして盛り込んでおきます。
-さて、これを踏まえて先の3つの変換を行列で書いてみましょう。
-
-- $(T_x, T_y, T_z)$の平行移動行列
+ではカメラの位置を$\vec e$、カメラの姿勢を表すベクトル(基底ベクトル)をそれぞれ$\vec \alpha, \vec \beta,  \vec \gamma$として行列を作ってみましょう。
+まず、1つ目の変換は簡単ですね。$\vec e$が原点に来るように平行移動すればいいので、
 $$$
-T = \left( \begin{array}{ccc} 1 & 0 & 0 & Tx \\
-    0 & 1 & 0 & Ty \\
-    0 & 0 & 1 & Tz \\
-    0 & 0 & 0 & 1 \\
-\end{array} \right )    
-$$$
-
-- $(N_x, N_y, N_z)$を軸とする$\theta$の回転行列
-$c = cosθ, s = sinθ$とする
-$$$
-R = \left( \begin{array}{cccc} N_x^2(1-c)+c & N_xN_y(1-c)-sN_z & NzNx(1-c)+sNy & 0 \\
-N_xN_y(1-c)+sN_z & N_y^2(1-c)+c & N_yN_z(1-c)-sN_x & 0 \\
-N_zN_x(1-c)-sN_y & N_yN_z(1-c)+sN_x & N_z^2(1-c)+c & 0 \\
-0 & 0 &  0 & 1 \\
+M_1 = \left( \begin{array}{cccc}
+1 & 0 & 0 & -e_x \\
+0 & 1 & 0 & -e_y \\
+0 & 0 & 1 & -e_z \\
+0 & 0 & 0 & 1
 \end{array} \right)
 $$$
-
-- $(S_x,S_y,S_z)$の拡大縮小行列
+です。
+2つ目の変換は標準基底からある正規直交基底への基底変換ですので、
 $$$
-S = \left( \begin{array}{cccc} Sx & 0 & 0 & 0 \\
-0 & S_y & 0 & 0 \\
-0 & 0 & S_z & 0 \\
-0 & 0 & 0 & 1 \\
+M_2 = \left( \begin{array}{cccc}
+\alpha_x & \alpha_y & \alpha_z & 0 \\
+\beta_x & \beta_y & \beta_z & 0 \\
+\gamma_x & \gamma_y & \gamma_z & 0 \\
+0 & 0 & 0 & 1
 \end{array} \right)
 $$$
-
-とまぁ、こんなかんじの行列を先ほどの4次元ベクトルに掛け算すれば、それぞれの変換が行われます。
-例えば、$(x,y,z)$を$(a,b,c)$だけ平行移動させたければ、次のようにします。
-$(x,y,z) \mapsto (x,y,z,1)$
+です。
+これらを順に適用するような行列を作ればいいので、
 $$$
-\left( \begin{array}{ccc} 1 & 0 & 0 & a \\
-    0 & 1 & 0 & b \\
-    0 & 0 & 1 & c \\
-    0 & 0 & 0 & 1 \\
-\end{array} \right )
-\times \left( \begin{array}{c} x \\ y \\ z \\ 1 \end{array} \right) = \left( \begin{array}{c} x + a \\ y + b \\ z + c \\ 1 \end{array} \right)
+M_2 \times M_1 = \left( \begin{array}{cccc}
+\alpha_x & \alpha_y & \alpha_z & -\vec e \cdot \vec \alpha \\
+\beta_x & \beta_y & \beta_z & -\vec e \cdot \vec \beta \\
+\gamma_x & \gamma_y & \gamma_z & -\vec e \cdot \vec \gamma \\
+0 & 0 & 0 & 1
+\end{array} \right)
 $$$
-$(x+a,y+b,z+c,1) \mapsto (x+a,y+b,z+c)$
-これで確かに平行移動ができていますね。回転と拡大は行列の部分を変更するだけで行えます。
-
-行列を用いて、3つの変換を一般化することができました。
-行列を用いることの嬉しさはもう一つあります。
-それは行列が結合法則を満たすということです。
-つまり、$A,B$を行列とし、$V$をベクトルとすると、以下が成り立ちます。
-$$$A \times (B \times V) = (A \times B) \times V$$$
-例えば、「(0,1,2)方向に平行移動してから(1,0,0)を中心に30°回転し、(0.5,0.2,0.3)の割合で拡大」のような複合的な変換をしたいとき、3つの行列を全て保存していなくても、それらを掛け合わせた行列を1つ保存しておけば同じことが起きるのです。変換の種類がいくつに増えてもこれは変わりません。
+ですね。
+これを用意しておけば、カメラから見た頂点座標が計算できるわけです。
 
 ```javascript
-const mTranslate = (x,y,z) => [
-    1,0,0,0,
-    0,1,0,0,
-    0,0,1,0,
-    x,y,z,1
-];
-
-const mRotate = (x,y,z,t) => {
-    const c = Math.cos(t);
-    const s = Math.sin(t);
+const lookAt = (eye, forward, up) => {
+    const side = normalize(cross(up, forward));
+    up = normalize(cross(forward, side));
     return [
-        x*x*(1-c)+c, x*y*(1-c)+s*z, z*x*(1-c)-s*y, 0,
-        x*y*(1-c)-s*z, y*y*(1-c)+c, y*z*(1-c)+s*x, 0,
-        z*x*(1-c)+s*y, y*z*(1-c)-s*x, z*z*(1-c)+c, 0,
-        0,0,0,1
+        side.x, up.x, forward.x, 0,
+        side.y, up.y, forward.y, 0,
+        side.z, up.z, forward.z, 0,
+        -dot(eye, side), -dot(eye, up), -dot(eye, forward), 1
     ];
 };
-const mScale = (x,y,z) => [
-    x,0,0,0,
-    0,y,0,0,
-    0,0,z,0,
-    0,0,0,1
-];
-
-const mult = (a,b) => {
-    const res = [];
-    for (let i = 0; i < 4; i++) {
-        for (let j = 0; j < 4; j++) {
-            let m = 0;
-            for (let k = 0; k < 4; k++) {
-                m += a[i*4+k] * b[k*4+j];
-            }
-            res.push(m);
-        }
-    }
-    return res;
-};
-```
-```javascript
-let m1 = mTranslate(0.5, 0, 0);
-let m2 = mTranslate(0,0,0);
-const R = mRotate(0,0,1, 0.1);
 ...
-const colorLocation = gl.getUniformLocation(program, "color");
-const matrixLocation = gl.getUniformLocation(program, "matrix");
-gl.uniformMatrix4fv(matrixLocation, false, m1);
+const forward = normalize(vec3(-eye.x, -eye.y, -eye.z));
+const up = vec3(0,1,0);
+const viewMatrix = lookAt(eye, forward, up);
+
+gl.uniformMatrix4fv(viewMatrixLocation, false, viewMatrix);
 gl.uniform3f(colorLocation, 1,0,0);
 gl.drawArrays(gl.TRIANGLES, 0, 3);
-gl.uniformMatrix4fv(matrixLocation, false, m2);
 gl.uniform3f(colorLocation, 0,0,1);
 gl.drawArrays(gl.TRIANGLES, 3, 3);
 gl.flush();
 
-m1 = mult(m1, R);
-m2 = mult(m2, R);
 ```
 ```glsl
 attribute vec3 position;
-uniform mat4 matrix;
+uniform mat4 viewMatrix;
 
 void main() {
-    gl_Position = matrix * vec4(position, 1.);
+    gl_Position = viewMatrix * vec4(position, 1.);
 }
 ```
-Uniform変数にベクトルを渡すときにはuniform3fでしたが、行列を渡すときにはuniformMatrix4fvという関数を使います。第2引数には必ずfalseを入れるという謎仕様です。(trueにするとエラーを吐く)
+eyeという変数はカメラの位置を表すベクトルです。forwardがカメラの前方向を表すベクトル、upが上方向を表すベクトルです。
+この時点ではforwardとupは直交していませんが、lookAtの中で直交するように補正してあります。
+normalizeやdotなどの各種ベクトル用関数は用意しておきました。
+normalizeがベクトルの長さを1にする関数、dotが内積、crossが外積です。

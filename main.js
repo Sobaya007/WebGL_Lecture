@@ -21,9 +21,9 @@
         0.0, 0.5, 0.2,
         0.5, -0.5, 0.2,
         -0.5, -0.5, 0.2,
-        0.0, -0.5, 0.8,
-        0.5, 0.5, 0.8,
-        -0.5, 0.5, 0.8
+        0.0, -0.5, 0.5,
+        0.5, 0.5, 0.5,
+        -0.5, 0.5, 0.5
     ]), gl.STATIC_DRAW);
 
     /*
@@ -94,6 +94,36 @@
     });
 
     /*
+     * ベクトル計算
+     */
+    const vec3 = (x,y,z) => {
+        return {
+            x: x,
+            y: y,
+            z: z
+        };
+    };
+
+    const len = v => Math.sqrt(v.x*v.x + v.y*v.y + v.z*v.z);
+
+    const normalize = v => {
+        const l = len(v);
+        return {
+            x: v.x / l,
+            y: v.y / l,
+            z: v.z / l
+        };
+    };
+
+    const dot = (a,b) => a.x * b.x + a.y * b.y + a.z * b.z;
+
+    const cross = (a,b) => vec3(
+        a.y * b.z - a.z * b.y,
+        a.z * b.x - a.x * b.z,
+        a.x * b.y - a.y * b.x
+    );
+
+    /*
      * 行列計算
      */
 
@@ -122,6 +152,17 @@
         0,0,0,1
     ];
 
+    const lookAt = (eye, forward, up) => {
+        const side = normalize(cross(up, forward));
+        up = normalize(cross(forward, side));
+        return [
+            side.x, up.x, forward.x, 0,
+            side.y, up.y, forward.y, 0,
+            side.z, up.z, forward.z, 0,
+            -dot(eye, side), -dot(eye, up), -dot(eye, forward), 1
+        ];
+    };
+
     const mult = (a,b) => {
         const res = [];
         for (let i = 0; i < 4; i++) {
@@ -140,24 +181,29 @@
      * レンダリング
      */
     gl.enable(gl.DEPTH_TEST);
-    let m1 = mTranslate(0.5, 0, 0);
-    let m2 = mTranslate(0,0,0);
-    const R = mRotate(0,0,1, 0.1);
+    const eye = vec3(0,0.2,0.3);
+    const c = Math.cos(0.01);
+    const s = Math.sin(0.01);
     const render = _ => {
         requestAnimationFrame(render);
         gl.clearColor(0,0,0,1);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         const colorLocation = gl.getUniformLocation(program, "color");
-        const matrixLocation = gl.getUniformLocation(program, "matrix");
-        gl.uniformMatrix4fv(matrixLocation, false, m1);
+        const viewMatrixLocation = gl.getUniformLocation(program, "viewMatrix");
+
+        /*
+         * カメラ計算
+         */
+        [eye.x, eye.z] = [eye.x * c - eye.z * s, eye.x * s + eye.z * c];
+        const forward = normalize(vec3(-eye.x, -eye.y, -eye.z));
+        const up = vec3(0,1,0);
+        const viewMatrix = lookAt(eye, forward, up);
+
+        gl.uniformMatrix4fv(viewMatrixLocation, false, viewMatrix);
         gl.uniform3f(colorLocation, 1,0,0);
         gl.drawArrays(gl.TRIANGLES, 0, 3);
-        gl.uniformMatrix4fv(matrixLocation, false, m2);
         gl.uniform3f(colorLocation, 0,0,1);
         gl.drawArrays(gl.TRIANGLES, 3, 3);
         gl.flush();
-
-        m1 = mult(m1, R);
-        m2 = mult(m2, R);
     };
 })();
