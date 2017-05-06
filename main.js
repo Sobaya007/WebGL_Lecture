@@ -13,18 +13,37 @@
     }
 
     /*
+     * Torus
+     */
+    const vertices = []; //頂点
+    const normals = []; //各頂点の位置での法線
+
+    for (let i = 0; i < 40; i++) {
+        for (let j = 0; j <= 21; j++) {
+            const theta = (i + j % 2) * Math.PI * 2 / 40;
+            const ct = Math.cos(theta);
+            const st = Math.sin(theta);
+            const phi = (j + i % 2) * Math.PI * 2 / 20;
+            const cp = Math.cos(phi);
+            const sp = Math.sin(phi);
+            vertices.push(ct * 0.5 + 0.1 * ct * cp);
+            vertices.push(0.1 * sp);
+            vertices.push(st * 0.5 + 0.1 * st * cp);
+            normals.push(ct * cp);
+            normals.push(sp);
+            normals.push(st * cp);
+        }
+    }
+
+    /*
      * Vertex Buffer
      */
     const vertexPositionBuffer = gl.createBuffer();
+    const vertexNormalBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, vertexPositionBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
-        0.0, 0.5, 0.2,
-        0.5, -0.5, 0.2,
-        -0.5, -0.5, 0.2,
-        0.0, -0.5, 0.5,
-        0.5, 0.5, 0.5,
-        -0.5, 0.5, 0.5
-    ]), gl.STATIC_DRAW);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, vertexNormalBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(normals), gl.STATIC_DRAW);
 
     /*
      * Shader Programの作成
@@ -85,10 +104,16 @@
         /*
          * Vertex BufferとShader Programの結び付け
          */
-        const attributeLocation = gl.getAttribLocation(program, "position");
-        gl.enableVertexAttribArray(attributeLocation);
+        const positionLocation = gl.getAttribLocation(program, "position");
+        const normalLocation = gl.getAttribLocation(program, "normal");
+
+        gl.enableVertexAttribArray(positionLocation);
         gl.bindBuffer(gl.ARRAY_BUFFER, vertexPositionBuffer);
-        gl.vertexAttribPointer(attributeLocation, 3, gl.FLOAT, false, 0, 0);
+        gl.vertexAttribPointer(positionLocation, 3, gl.FLOAT, false, 0, 0);
+
+        gl.enableVertexAttribArray(normalLocation);
+        gl.bindBuffer(gl.ARRAY_BUFFER, vertexNormalBuffer);
+        gl.vertexAttribPointer(normalLocation, 3, gl.FLOAT, false, 0, 0);
 
         requestAnimationFrame(render);
     });
@@ -199,6 +224,7 @@
         gl.clearColor(0,0,0,1);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         const colorLocation = gl.getUniformLocation(program, "color");
+        const eyeLocation = gl.getUniformLocation(program, "cameraEye");
         const viewMatrixLocation = gl.getUniformLocation(program, "viewMatrix");
         const projMatrixLocation = gl.getUniformLocation(program, "projMatrix");
 
@@ -214,9 +240,8 @@
         gl.uniformMatrix4fv(viewMatrixLocation, false, viewMatrix);
         gl.uniformMatrix4fv(projMatrixLocation, false, projMatrix);
         gl.uniform3f(colorLocation, 1,0,0);
-        gl.drawArrays(gl.TRIANGLES, 0, 3);
-        gl.uniform3f(colorLocation, 0,0,1);
-        gl.drawArrays(gl.TRIANGLES, 3, 3);
+        gl.uniform3f(eyeLocation, eye.x, eye.y, eye.z);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, vertices.length / 3);
         gl.flush();
     };
 })();

@@ -1,135 +1,140 @@
 # OpenGL講習会
 
-## 3D感をもっともっと出す
-次の3D感はズバリ、遠近法です。
-ご存知の通り我々の世界では遠くのものほど小さく、近くのものほど大きく見えます。
-ですが残念ながらいまの状態ではまったくそんなことにはなっていません。
-これをOpenGLが勝手にやってくれたりはしないからです。
-自分でやるしかないのです。
+## $\dagger$光$\dagger$
+光です。光をやります。
+光のシミュレーションです。はい。
+光の表現技法もまた色々とあるのですが、今回はポピュラーな**Phong Shading**というのをやってみます。
 
-## 射影変換
-遠近感を出すために遠くのものほど小さくなるような変換、これのことを**射影変換**と言います。
-今からこの射影変換を行う行列を作っていきます。
+とりあえず光のシミュレーションをするには必要な材料があります。
+- 光の方向
+今回は太陽のように限りなく遠いところに光源がある設定でやるので、太陽の方向が必要です。
+- 物体の法線
+物体の表面に法線がどちらを向いているかの情報を付加する必要があります。
 
-### カメラのモデル化
-カメラの映す範囲をまず考えてみましょう。
-イメージ的にはこんな範囲で物を映す気がします。
-![](gl1.png)
-円錐形ですね。本当はこれが映す範囲ということにしたいのですが、残念ながらこれを採用してしまうと計算が面倒なことになってしまうのです。なので$\dagger$ちょっと$\dagger$似てるかんじでこんな形ってことにします。
-![](gl6.png)
-わかりますかね？四角錘の上削ったバージョンです。
-この範囲に収まるものを描画することにしましょう。
+光の方向はとりあえず定義しとけばいいので大丈夫なのですが、法線は頑張って用意しないといけません。
 
-### OpenGLの描画領域
-OpenGLの描画領域は(1,1)から(-1,-1)の範囲であると2Dの時説明しました。この範囲外にある部分は描画されません。
-これが3Dになると、Zの値にも制限がつきます。3Dの場合には(1,1,1)から(-1,-1,-1)の範囲にある立方体領域にある部分しか画面に描画されません。
+それから前回までは三角形のポリゴンでしたが、それだと光が全然面白くないので頑張ってTorusを用意してみました。
 
-ということは、先の四角錘の内部の空間を(-1,-1,-1) ~ (1,1,1)の立方体領域に圧縮できればカメラから遠いものは勝手に小さくなるし描画領域も整うしで一石二鳥ってかんじがします。
+さて、Phongシェーディングでは物体からカメラへ来る光を3つの種類にモデル化します。
 
-### 描画の流れ
-てことで、3D空間上のものがどうやって画面上に現れるかを順に見ていってみましょう。
+1. 拡散光(Diffuse)
+光源から出て物体表面で拡散する光です。反射ではなく拡散する光なので、光源とカメラの相対位置には関係なく純粋に当たる光の量に比例して強くなります。
+1. 反射光(Specular)
+光源から出て物体表面で反射する光です。
+1. 環境光(Ambient)
+乱反射によって不定の位置から物体を経由してカメラに入ってくる光です。適当に考えると、だいたい定数です。
 
-![](gl3.png)
+それぞれの光の強さを考えてみます。
 
-このようになっているとします。黒いのがカメラで、赤と青が描画される物体です。
-まず、これを押しつぶして直方体にします。
+### 拡散光(Diffuse)
+ある微小平面に当たる光の量は光の方向$\vec L$と法線$\vec N$の成す角$\theta$の$\cos \theta$に比例します。
+![](diffuse.png)
+よって、$\vec L \cdot \vec N$に比例すると言えます。
 
-![](gl4.png)
+### 反射光(specular)
+物体表面からカメラへ向かうベクトルを$\vec E$とします。
+反射光は反射してきた光の方向がカメラの方向へ向かうベクトルと近いとき大きくなります。ここの近似はものすごい投げやりですが、それっぽく見えるのセーフ。
+GLSLにはあるベクトル$\vec v$を法線$\vec n$を持つ平面で反射させたときのベクトルを得る関数reflectがありますので、それを使うことにします。すると、specularの大きさはだいたい
+$reflect(\vec L, \vec N) \cdot \vec E$
+となります。さらに、反射の鋭さをコントロールするパラメータ$\alpha$を導入し、
+$(reflect(\vec L, \vec N) \cdot \vec N) ^ \alpha$
+とします。内積はベクトル同士が近いときほど大きくなり、$\alpha$を大きくするとある程度まで内積が大きくないと全体としては大した大きさにならなくなります。
 
-このとき、空間内部の物体も同様に押しつぶされます。これにより、遠くのものほど小さくなります。
-次に直方体を前後方向に押しつぶして2次元にしてしまいます。
+### 環境光(Ambient)
+これは適当なので定数でいいです。
 
-![](gl5.png)
+これら3つの光をすべて合計したものを1つの「光」として扱うと、なんか見た目それっぽいじゃないか！というのがPhongシェーディングという描画方法です。
+「とりあえずこれやっとけばそれっぽく見える」という鉄板ネタです。
+他にも似たようなものにGouraud shadingとかLambert shadingとかいったものもあるのですが、片方はPhongの劣化版で、もう片方はPhongの特殊ケースなのでPhongだけ抑えておけば多分ちょっと調べればわかると思います。
 
-このとき、深度テストにより2物体以上が被っている場合は近いものを優先します。
-こんなかんじの流れになります。では行列を計算してみましょう。
+ということで、以上の数式をシェーダに持ち込めばできあがりです。
+JavaScript側からGLSLに渡さなければいけないものはいくつかあるのですが、一番ここで厄介なのは「法線」です。
+上の話でしれっと出てきましたが、法線とは物体の表面に対して定義されるベクトルで、表面と垂直な向きをしているものです。
+Phong Shadingに必要な情報として他にはカメラの位置や光源の位置などがありますが、これらはGLSLの「いまどこの色を決めようとしているか」ということに関して定数です。
+ですが、法線というのは「いまどこの色を決めようとしているか」が変わると変わってしまいます。
 
-### カメラのパラメータ
-カメラの描画領域を四角錘っぽい形にしましたが、あの形状を表すために4つのパラメータを導入します。
+こういうときには`attribute`と`varying`という2つの修飾子を使います。
+`attribute`は前回までも頂点を渡すために使っていました。
+`attribute`には別の使い方もあり、頂点に座標以外の他の情報(ここでは法線ベクトル)を持たせるということができます。
+つまり、各頂点ごとに異なる法線ベクトルを与えることができます。
 
-- カメラのy方向の視野角 
-Field Of View の略でFOVと呼ばれています。
-- アスペクト比 
-底面の幅 / 底面の高さ
-- 近い側の底面を表すz座標 
-near clip と呼ばれます。
-- 遠い側の底面を表すz座標 
-far clip と呼ばれます。
+確かにこれで頂点の位置にある法線がどこを向いているかはわかりますが、頂点と頂点の間の空間も無数にあるわけで、そこの法線はまだわかりません。
+そこで、`varying`というのを使います。`varying`のついた変数に頂点シェーダで代入すると、フラグメントシェーダでそれを使うときに、その値をいいかんじに補間した値が代入されてきます。
 
-![](gl7.png)
+まとめると、
+1. JavaScriptから`attribute`に法線を渡す
+2. 頂点シェーダで`attribute`の中身を`varying`に渡す
+3. フラグメントシェーダで`varying`変数を使う
 
-これだけあれば描画領域の形を定義できそうです。
+という手順を踏めばいいかんじにポリゴン表面の法線をフラグメントシェーダで使うことができます。
 
-### 行列計算
-では行列を作っていきます。とりあえず前提として、すべての座標がビュー空間にある、つまりカメラの場所にちょうど原点があり、座標軸とカメラの向きは揃っているということにしてください。
-注意されたいのは、この座標系が**右手系か左手系か**ということです。x,y,z軸が親指、人差し指、中指に対応するとき、かならず右手か左手かのどちらかにしか合いません。直感的に考えるとx,y,z軸はそれぞれ右、上、奥が正方向となる気がしますが、これは左手系です。一方、OpenGLや数学で扱う座標系は右手系です。この違いを解消するために、z軸が手前を向いているというちょっと気持ち悪い設定にしなければなりません。
-するとy座標はz座標が小さいほど縮小されます。
-z = -$nearClip$のとき、yは$[-nearClip \times \tan(\frac {FOV} 2), nearClip \times \tan(\frac{FOV} 2)]$の範囲を[-1,1]に縮小し、
-z = -$farClip$のとき、yは$[-farClip \times \tan(\frac {FOV} 2), farClip \times \tan(\frac{FOV} 2)]$の範囲を[-1,1]に縮小すればいいということです。
-$y \mapsto \frac y {-z \times \tan(\frac {FOV} 2)}$
-同様に、x座標も
-$x \mapsto \frac x {-z \times aspect \times \tan(\frac {FOV} 2)}$
-とすればいいのがわかります。
+GLSL特有の3つの修飾子についてまとめておきます。
 
-ここでおや？と思ってくださるでしょうか？xとyの変換には**分母**にzが入っています。これの意味するところは、**x,yの変換は線形変換ではない**ということです。つまり、行列にできません。
+| 修飾子名 | 転送元 | 転送先 | 概要
+|--------|--------|-------|----|
+| attribute | JavaScript | 頂点シェーダ | 頂点座標か、その他頂点ごとに異なるデータを送る|
+| varying | 頂点シェーダ | フラグメントシェーダ | 「頂点ごとに違うデータ」を補間し、「ピクセルごとに違うデータ」に変える|
+| uniform | JavaScript | 頂点シェーダorフラグメントシェーダ| 場所ごとに変わらないデータを送る |
 
-ですが思い出してください。我々は4次元ベクトルと3次元ベクトルを行き来するためのあるルールを作っていました。
-$(x,y,z,w) \mapsto (\frac x w, \frac y w, \frac z w)$
-今まで頂点シェーダのgl_Positionには4次元ベクトルを入れていました。この4次元ベクトルは上記の変換を**自動で**行い、3次元ベクトルとして内部で処理されます。これを利用すると、予めwに-zを入れておけば割り算できるということになりますよね？
-つまり、こうです
-$(x,y,z,1) \mapsto (\frac x {aspect \times \tan(\frac {FOV} 2)}, \frac y {\tan(\frac {FOV} 2)}, ?, -z)$
-あとの?の部分に何が入るか考えましょう。?の値は以下の条件が掛かります。
-- $z = -nearClip$のとき$\frac ? {-z} = -1$
-- $z = -farClip$のとき$\frac ? {-z} = 1$
-- ?はzの一次式($\Rightarrow az + b = ?$)
-
-以上の条件から連立方程式
-$$$
-a \times -nearClip + b = -1 \times nearClip \\
-a \times -farClip + b = 1 \times farClip
-$$$
-を解くと、
-$$$
-? = \frac {-(farClip + nearClip)z - 2 farClip \times nearClip}{farClip - nearClip}
-$$$
-ということで後はこれを行う行列を作ればいいわけですね。
-
-$$$
-\left( \begin{array}{cccc} 
-\frac 1 {aspect \times \tan(\frac {FOV} 2)} & 0 & 0 & 0 \\
-0 & \frac 1 {tan(\frac {FOV} 2)} & 0 & 0 \\
-0 & 0 & \frac {nearClip + farClip} {nearClip - farClip} & \frac{2farClip \times nearClip} {nearClip - farClip} \\
-0 & 0 & -1 & 0
-\end{array} \right)
-$$$
-これが射影変換行列です。できたー！
+以上のことから、ソースコードはこんなかんじになります
 
 ```javascript
-const perspective = (asp, fov, near, far) => {
-    const t = Math.tan(fov / 2);
-    return [
-        1 / (asp * t),0,0,0,
-        0,1/t,0,0,
-        0,0,(near+far) / (near-far), -1,
-        0,0,2*near*far/(near-far),0
-    ];
-};
+const vertices = []; //頂点
+const normals = []; //各頂点の位置での法線
 ...
-const projMatrixLocation = gl.getUniformLocation(program, "projMatrix");
+// verticesとnormalsに中身を入れる
 ...
-const forward = normalize(vec3(eye.x, eye.y, eye.z));
+const vertexPositionBuffer = gl.createBuffer();
+const vertexNormalBuffer = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, vertexPositionBuffer);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+gl.bindBuffer(gl.ARRAY_BUFFER, vertexNormalBuffer);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(normals), gl.STATIC_DRAW);
 ...
-const projMatrix = perspective(1, Math.PI / 2, 0.1, 5);
+const positionLocation = gl.getAttribLocation(program, "position");
+const normalLocation = gl.getAttribLocation(program, "normal");
+
+gl.enableVertexAttribArray(positionLocation);
+gl.bindBuffer(gl.ARRAY_BUFFER, vertexPositionBuffer);
+gl.vertexAttribPointer(positionLocation, 3, gl.FLOAT, false, 0, 0);
+
+gl.enableVertexAttribArray(normalLocation);
+gl.bindBuffer(gl.ARRAY_BUFFER, vertexNormalBuffer);
+gl.vertexAttribPointer(normalLocation, 3, gl.FLOAT, false, 0, 0);
 ...
-gl.uniformMatrix4fv(projMatrixLocation, false, projMatrix);
 ```
+
 
 ```glsl
 attribute vec3 position;
+attribute vec3 normal;
 uniform mat4 viewMatrix;
 uniform mat4 projMatrix;
+varying vec3 vPosition;
+varying vec3 vNormal;
 
 void main() {
     gl_Position = projMatrix * viewMatrix * vec4(position, 1.);
+    vPosition = position;
+    vNormal = normal;
+}
+```
+
+```glsl
+precision mediump float;
+
+uniform vec3 color;
+uniform vec3 cameraEye;
+varying vec3 vPosition;
+varying vec3 vNormal;
+
+void main() {
+    const vec3 lightDir = normalize(vec3(1,1,1));
+    vec3 toCamera = normalize(vPosition - cameraEye);
+    vec3 lightRef = reflect(lightDir, normalize(vNormal));
+    float amb = 0.1;
+    float dif = max(0., dot(normalize(vNormal), lightDir));
+    float spc = pow(max(0., dot(toCamera, lightRef)), 10.);
+    gl_FragColor = vec4((amb + dif) * color + spc * 0.5, 1);
 }
 ```
