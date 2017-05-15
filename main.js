@@ -13,37 +13,107 @@
     }
 
     /*
-     * Torus
+     * Cube
      */
     const vertices = []; //頂点
     const normals = []; //各頂点の位置での法線
+    const uvs = []; //UV座標
 
-    for (let i = 0; i < 40; i++) {
-        for (let j = 0; j <= 21; j++) {
-            const theta = (i + j % 2) * Math.PI * 2 / 40;
-            const ct = Math.cos(theta);
-            const st = Math.sin(theta);
-            const phi = (j + i % 2) * Math.PI * 2 / 20;
-            const cp = Math.cos(phi);
-            const sp = Math.sin(phi);
-            vertices.push(ct * 0.5 + 0.1 * ct * cp);
-            vertices.push(0.1 * sp);
-            vertices.push(st * 0.5 + 0.1 * st * cp);
-            normals.push(ct * cp);
-            normals.push(sp);
-            normals.push(st * cp);
-        }
-    }
+    //front
+    Array.prototype.push.apply(vertices,[+0.2,+0.2,+0.2]);
+    Array.prototype.push.apply(vertices,[+0.2,-0.2,+0.2]);
+    Array.prototype.push.apply(vertices,[-0.2,+0.2,+0.2]);
+    Array.prototype.push.apply(vertices,[-0.2,-0.2,+0.2]);
+    Array.prototype.push.apply(normals,[0,0,+1]);
+    Array.prototype.push.apply(normals,[0,0,+1]);
+    Array.prototype.push.apply(normals,[0,0,+1]);
+    Array.prototype.push.apply(normals,[0,0,+1]);
+    Array.prototype.push.apply(uvs,[0,0]);
+    Array.prototype.push.apply(uvs,[0,1]);
+    Array.prototype.push.apply(uvs,[1,0]);
+    Array.prototype.push.apply(uvs,[1,1]);
+    //back
+    Array.prototype.push.apply(vertices,[+0.2,+0.2,-0.2]);
+    Array.prototype.push.apply(vertices,[+0.2,-0.2,-0.2]);
+    Array.prototype.push.apply(vertices,[-0.2,+0.2,-0.2]);
+    Array.prototype.push.apply(vertices,[-0.2,-0.2,-0.2]);
+    Array.prototype.push.apply(normals,[0,0,-1]);
+    Array.prototype.push.apply(normals,[0,0,-1]);
+    Array.prototype.push.apply(normals,[0,0,-1]);
+    Array.prototype.push.apply(normals,[0,0,-1]);
+    Array.prototype.push.apply(uvs,[0,0]);
+    Array.prototype.push.apply(uvs,[0,1]);
+    Array.prototype.push.apply(uvs,[1,0]);
+    Array.prototype.push.apply(uvs,[1,1]);
+
+    //right
+    Array.prototype.push.apply(vertices,[+0.2,+0.2,+0.2]);
+    Array.prototype.push.apply(vertices,[+0.2,-0.2,+0.2]);
+    Array.prototype.push.apply(vertices,[+0.2,+0.2,-0.2]);
+    Array.prototype.push.apply(vertices,[+0.2,-0.2,-0.2]);
+    Array.prototype.push.apply(normals,[+1,0,0]);
+    Array.prototype.push.apply(normals,[+1,0,0]);
+    Array.prototype.push.apply(normals,[+1,0,0]);
+    Array.prototype.push.apply(normals,[+1,0,0]);
+    Array.prototype.push.apply(uvs,[0,0]);
+    Array.prototype.push.apply(uvs,[0,1]);
+    Array.prototype.push.apply(uvs,[1,0]);
+    Array.prototype.push.apply(uvs,[1,1]);
+
+    //left
+    Array.prototype.push.apply(vertices,[-0.2,+0.2,+0.2]);
+    Array.prototype.push.apply(vertices,[-0.2,-0.2,+0.2]);
+    Array.prototype.push.apply(vertices,[-0.2,+0.2,-0.2]);
+    Array.prototype.push.apply(vertices,[-0.2,-0.2,-0.2]);
+    Array.prototype.push.apply(normals,[-1,0,0]);
+    Array.prototype.push.apply(normals,[-1,0,0]);
+    Array.prototype.push.apply(normals,[-1,0,0]);
+    Array.prototype.push.apply(normals,[-1,0,0]);
+    Array.prototype.push.apply(uvs,[0,0]);
+    Array.prototype.push.apply(uvs,[0,1]);
+    Array.prototype.push.apply(uvs,[1,0]);
+    Array.prototype.push.apply(uvs,[1,1]);
+
+    //up
+    Array.prototype.push.apply(vertices,[+0.2,+0.2,+0.2]);
+    Array.prototype.push.apply(vertices,[+0.2,+0.2,-0.2]);
+    Array.prototype.push.apply(vertices,[-0.2,+0.2,+0.2]);
+    Array.prototype.push.apply(vertices,[-0.2,+0.2,-0.2]);
+    Array.prototype.push.apply(normals,[0,+1,0]);
+    Array.prototype.push.apply(normals,[0,+1,0]);
+    Array.prototype.push.apply(normals,[0,+1,0]);
+    Array.prototype.push.apply(normals,[0,+1,0]);
+    Array.prototype.push.apply(uvs,[0,0]);
+    Array.prototype.push.apply(uvs,[0,1]);
+    Array.prototype.push.apply(uvs,[1,0]);
+    Array.prototype.push.apply(uvs,[1,1]);
+
+    //down
+    Array.prototype.push.apply(vertices,[+0.2,-0.2,+0.2]);
+    Array.prototype.push.apply(vertices,[+0.2,-0.2,-0.2]);
+    Array.prototype.push.apply(vertices,[-0.2,-0.2,+0.2]);
+    Array.prototype.push.apply(vertices,[-0.2,-0.2,-0.2]);
+    Array.prototype.push.apply(normals,[0,-1,0]);
+    Array.prototype.push.apply(normals,[0,-1,0]);
+    Array.prototype.push.apply(normals,[0,-1,0]);
+    Array.prototype.push.apply(normals,[0,-1,0]);
+    Array.prototype.push.apply(uvs,[0,0]);
+    Array.prototype.push.apply(uvs,[0,1]);
+    Array.prototype.push.apply(uvs,[1,0]);
+    Array.prototype.push.apply(uvs,[1,1]);
 
     /*
      * Vertex Buffer
      */
     const vertexPositionBuffer = gl.createBuffer();
     const vertexNormalBuffer = gl.createBuffer();
+    const vertexUvBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, vertexPositionBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
     gl.bindBuffer(gl.ARRAY_BUFFER, vertexNormalBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(normals), gl.STATIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, vertexUvBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(uvs), gl.STATIC_DRAW);
 
     /*
      * Shader Programの作成
@@ -101,11 +171,16 @@
         // 使用開始
         gl.useProgram(program);
 
+        // テクスチャユニットをシェーダと結びつける
+        const uniformLocation = gl.getUniformLocation(program, "tex");
+        gl.uniform1i(uniformLocation, 0);
+
         /*
          * Vertex BufferとShader Programの結び付け
          */
         const positionLocation = gl.getAttribLocation(program, "position");
         const normalLocation = gl.getAttribLocation(program, "normal");
+        const uvLocation = gl.getAttribLocation(program, "uv");
 
         gl.enableVertexAttribArray(positionLocation);
         gl.bindBuffer(gl.ARRAY_BUFFER, vertexPositionBuffer);
@@ -115,8 +190,31 @@
         gl.bindBuffer(gl.ARRAY_BUFFER, vertexNormalBuffer);
         gl.vertexAttribPointer(normalLocation, 3, gl.FLOAT, false, 0, 0);
 
+        gl.enableVertexAttribArray(uvLocation);
+        gl.bindBuffer(gl.ARRAY_BUFFER, vertexUvBuffer);
+        gl.vertexAttribPointer(uvLocation, 2, gl.FLOAT, false, 0, 0);
+
         requestAnimationFrame(render);
     });
+
+    /*
+     * テクスチャ準備
+     */
+    const img = new Image();
+    img.src = "./dman.png";
+    // 画像読み込み後の処理
+    img.onload = _ => {
+        // テクスチャユニット0番を有効化
+        gl.activeTexture(gl.TEXTURE0);
+        // テクスチャの素を作る
+        const tex = gl.createTexture();
+        // テクスチャユニット0番とtexを結び付け、かつバインド
+        gl.bindTexture(gl.TEXTURE_2D, tex);
+        // JavaScript側の画像データをOpenGL側のテクスチャに結び付ける
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+        // ミップマップを生成
+        gl.generateMipmap(gl.TEXTURE_2D);
+    };
 
     /*
      * ベクトル計算
@@ -241,7 +339,9 @@
         gl.uniformMatrix4fv(projMatrixLocation, false, projMatrix);
         gl.uniform3f(colorLocation, 1,0,0);
         gl.uniform3f(eyeLocation, eye.x, eye.y, eye.z);
-        gl.drawArrays(gl.TRIANGLE_STRIP, 0, vertices.length / 3);
+        for (let i = 0; i < 6; i++) {
+            gl.drawArrays(gl.TRIANGLE_STRIP, i*4, 4);
+        }
         gl.flush();
     };
 })();
