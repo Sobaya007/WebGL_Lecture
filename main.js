@@ -11,304 +11,117 @@
         document.body.innerHTML = "WebGL使えません。お使いのブラウザはクソ!w";
         return;
     }
+    const ext = gl.getExtension('OES_vertex_array_object');
+    if(!ext){
+        document.body.innerHTML = "WebGLの拡張機能が使えません。お使いのブラウザはクソ!w";
+        return;
+    }
+    const createObject = makeCreateObject(gl, ext);
+    const createTexture = makeCreateTexture(gl);
+
+    const tex0 = createTexture("./dman.png");
+    const tex1 = createTexture("./skydome.png");
 
     /*
      * Cube
      */
-    const vertices = []; //頂点
-    const normals = []; //各頂点の位置での法線
-    const uvs = []; //UV座標
-
-    //front
-    Array.prototype.push.apply(vertices,[+0.2,+0.2,+0.2]);
-    Array.prototype.push.apply(vertices,[+0.2,-0.2,+0.2]);
-    Array.prototype.push.apply(vertices,[-0.2,+0.2,+0.2]);
-    Array.prototype.push.apply(vertices,[-0.2,-0.2,+0.2]);
-    Array.prototype.push.apply(normals,[0,0,+1]);
-    Array.prototype.push.apply(normals,[0,0,+1]);
-    Array.prototype.push.apply(normals,[0,0,+1]);
-    Array.prototype.push.apply(normals,[0,0,+1]);
-    Array.prototype.push.apply(uvs,[0,0]);
-    Array.prototype.push.apply(uvs,[0,1]);
-    Array.prototype.push.apply(uvs,[1,0]);
-    Array.prototype.push.apply(uvs,[1,1]);
-    //back
-    Array.prototype.push.apply(vertices,[+0.2,+0.2,-0.2]);
-    Array.prototype.push.apply(vertices,[+0.2,-0.2,-0.2]);
-    Array.prototype.push.apply(vertices,[-0.2,+0.2,-0.2]);
-    Array.prototype.push.apply(vertices,[-0.2,-0.2,-0.2]);
-    Array.prototype.push.apply(normals,[0,0,-1]);
-    Array.prototype.push.apply(normals,[0,0,-1]);
-    Array.prototype.push.apply(normals,[0,0,-1]);
-    Array.prototype.push.apply(normals,[0,0,-1]);
-    Array.prototype.push.apply(uvs,[0,0]);
-    Array.prototype.push.apply(uvs,[0,1]);
-    Array.prototype.push.apply(uvs,[1,0]);
-    Array.prototype.push.apply(uvs,[1,1]);
-
-    //right
-    Array.prototype.push.apply(vertices,[+0.2,+0.2,+0.2]);
-    Array.prototype.push.apply(vertices,[+0.2,-0.2,+0.2]);
-    Array.prototype.push.apply(vertices,[+0.2,+0.2,-0.2]);
-    Array.prototype.push.apply(vertices,[+0.2,-0.2,-0.2]);
-    Array.prototype.push.apply(normals,[+1,0,0]);
-    Array.prototype.push.apply(normals,[+1,0,0]);
-    Array.prototype.push.apply(normals,[+1,0,0]);
-    Array.prototype.push.apply(normals,[+1,0,0]);
-    Array.prototype.push.apply(uvs,[0,0]);
-    Array.prototype.push.apply(uvs,[0,1]);
-    Array.prototype.push.apply(uvs,[1,0]);
-    Array.prototype.push.apply(uvs,[1,1]);
-
-    //left
-    Array.prototype.push.apply(vertices,[-0.2,+0.2,+0.2]);
-    Array.prototype.push.apply(vertices,[-0.2,-0.2,+0.2]);
-    Array.prototype.push.apply(vertices,[-0.2,+0.2,-0.2]);
-    Array.prototype.push.apply(vertices,[-0.2,-0.2,-0.2]);
-    Array.prototype.push.apply(normals,[-1,0,0]);
-    Array.prototype.push.apply(normals,[-1,0,0]);
-    Array.prototype.push.apply(normals,[-1,0,0]);
-    Array.prototype.push.apply(normals,[-1,0,0]);
-    Array.prototype.push.apply(uvs,[0,0]);
-    Array.prototype.push.apply(uvs,[0,1]);
-    Array.prototype.push.apply(uvs,[1,0]);
-    Array.prototype.push.apply(uvs,[1,1]);
-
-    //up
-    Array.prototype.push.apply(vertices,[+0.2,+0.2,+0.2]);
-    Array.prototype.push.apply(vertices,[+0.2,+0.2,-0.2]);
-    Array.prototype.push.apply(vertices,[-0.2,+0.2,+0.2]);
-    Array.prototype.push.apply(vertices,[-0.2,+0.2,-0.2]);
-    Array.prototype.push.apply(normals,[0,+1,0]);
-    Array.prototype.push.apply(normals,[0,+1,0]);
-    Array.prototype.push.apply(normals,[0,+1,0]);
-    Array.prototype.push.apply(normals,[0,+1,0]);
-    Array.prototype.push.apply(uvs,[0,0]);
-    Array.prototype.push.apply(uvs,[0,1]);
-    Array.prototype.push.apply(uvs,[1,0]);
-    Array.prototype.push.apply(uvs,[1,1]);
-
-    //down
-    Array.prototype.push.apply(vertices,[+0.2,-0.2,+0.2]);
-    Array.prototype.push.apply(vertices,[+0.2,-0.2,-0.2]);
-    Array.prototype.push.apply(vertices,[-0.2,-0.2,+0.2]);
-    Array.prototype.push.apply(vertices,[-0.2,-0.2,-0.2]);
-    Array.prototype.push.apply(normals,[0,-1,0]);
-    Array.prototype.push.apply(normals,[0,-1,0]);
-    Array.prototype.push.apply(normals,[0,-1,0]);
-    Array.prototype.push.apply(normals,[0,-1,0]);
-    Array.prototype.push.apply(uvs,[0,0]);
-    Array.prototype.push.apply(uvs,[0,1]);
-    Array.prototype.push.apply(uvs,[1,0]);
-    Array.prototype.push.apply(uvs,[1,1]);
-
-    /*
-     * Vertex Buffer
-     */
-    const vertexPositionBuffer = gl.createBuffer();
-    const vertexNormalBuffer = gl.createBuffer();
-    const vertexUvBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, vertexPositionBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
-    gl.bindBuffer(gl.ARRAY_BUFFER, vertexNormalBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(normals), gl.STATIC_DRAW);
-    gl.bindBuffer(gl.ARRAY_BUFFER, vertexUvBuffer);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(uvs), gl.STATIC_DRAW);
-
-    /*
-     * Shader Programの作成
-     */
-    const createShader = path => {
-        return new Promise((resolve, reject) => {
-            // ファイル拡張子からShaderの種類を判定
-            const shaderType = (_ => {
-                const extension = path.split(".")[1];
-                switch (extension) {
-                    case "vert":
-                        return gl.VERTEX_SHADER;
-                    case "frag":
-                        return gl.FRAGMENT_SHADER;
-                }
-            })();
-
-            // shaderファイルを取得
-            const xhr = new XMLHttpRequest();
-            xhr.open("GET", path, true);
-            xhr.addEventListener("load", event => {
-                const code = event.target.response;
-                // Shaderのもとを作成
-                const shader = gl.createShader(shaderType);
-                // Shaderとソースコードを結び付ける
-                gl.shaderSource(shader, code);
-
-                // Shaderをコンパイル
-                gl.compileShader(shader);
-
-                if (gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-                    resolve(shader);
-                } else {
-                    console.error(gl.getShaderInfoLog(shader));
-                    reject();
-                }
+    const cubeInfo = {};
+    const cubeAttributes = [];
+    for (let i = 0; i < 6; i++) {
+        const s = i % 2 ? +1 : -1;
+        const swap = (a, i) => [a[(0+i)%3], a[(1+i)%3], a[(2+i)%3]];
+        const positions = [
+            [+s, +s, +s],
+            [+s, +s, -s],
+            [+s, -s, +s],
+            [+s, -s, -s]
+        ].map(a => swap(a, Math.floor(i / 2)))
+         .map(a => a.map(b => b * 0.2));
+        const normals = [
+            [+s,0,0],
+            [+s,0,0],
+            [+s,0,0],
+            [+s,0,0]
+        ].map(a => swap(a, Math.floor(i / 2)));
+        const uvs = [
+            [0,0],
+            [0,1],
+            [1,0],
+            [1,1]
+        ];
+        for (let j = 0; j < 4; j++) {
+            cubeAttributes.push({
+                position: positions[j],
+                normal: normals[j],
+                uv: uvs[j],
             });
-            xhr.send(null);
-        });
-    };
+        }
+    }
+    const cube = createObject(cubeAttributes, "cube");
 
-    const program = gl.createProgram();
-    // Vertex Shaderを作成
-    createShader("main.vert").then(vs => {
-        // ProgramとVertex Shaderを結び付ける
-        gl.attachShader(program, vs);
-        // Fragment Shaderを作成
-        return createShader("main.frag");
-    }).then(fs => {
-        // ProgramとFragment Shaderを結び付ける
-        gl.attachShader(program, fs);
-        // リンク
-        gl.linkProgram(program);
+    Promise.all([cube, tex0, tex1]).then(res => {
+        const [cube, tex0, tex1] = res;
+        cubeInfo.program = cube.program;
+        cubeInfo.vao = cube.vao;
 
-        // 使用開始
-        gl.useProgram(program);
+        const texLocation = gl.getUniformLocation(cube.program, "tex");
+        const spheremapLocation = gl.getUniformLocation(cube.program, "spheremap");
 
-        // テクスチャユニットをシェーダと結びつける
-        const uniformLocation = gl.getUniformLocation(program, "tex");
-        gl.uniform1i(uniformLocation, 0);
-
-        /*
-         * Vertex BufferとShader Programの結び付け
-         */
-        const positionLocation = gl.getAttribLocation(program, "position");
-        const normalLocation = gl.getAttribLocation(program, "normal");
-        const uvLocation = gl.getAttribLocation(program, "uv");
-
-        gl.enableVertexAttribArray(positionLocation);
-        gl.bindBuffer(gl.ARRAY_BUFFER, vertexPositionBuffer);
-        gl.vertexAttribPointer(positionLocation, 3, gl.FLOAT, false, 0, 0);
-
-        gl.enableVertexAttribArray(normalLocation);
-        gl.bindBuffer(gl.ARRAY_BUFFER, vertexNormalBuffer);
-        gl.vertexAttribPointer(normalLocation, 3, gl.FLOAT, false, 0, 0);
-
-        gl.enableVertexAttribArray(uvLocation);
-        gl.bindBuffer(gl.ARRAY_BUFFER, vertexUvBuffer);
-        gl.vertexAttribPointer(uvLocation, 2, gl.FLOAT, false, 0, 0);
-
-        requestAnimationFrame(render);
+        gl.useProgram(cube.program);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, tex0);
+        gl.uniform1i(texLocation, 0);
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, tex1);
+        gl.uniform1i(spheremapLocation, 1);
     });
 
     /*
-     * テクスチャ準備
+     * Sphere
      */
-    const img = new Image();
-    img.src = "./dman.png";
-    // 画像読み込み後の処理
-    img.onload = _ => {
-        // テクスチャユニット0番を有効化
-        gl.activeTexture(gl.TEXTURE0);
-        // テクスチャの素を作る
-        const tex = gl.createTexture();
-        // テクスチャユニット0番とtexを結び付け、かつバインド
-        gl.bindTexture(gl.TEXTURE_2D, tex);
-        // JavaScript側の画像データをOpenGL側のテクスチャに結び付ける
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
-        // ミップマップを生成
-        gl.generateMipmap(gl.TEXTURE_2D);
-    };
-
-    /*
-     * ベクトル計算
-     */
-    const vec3 = (x,y,z) => {
-        return {
-            x: x,
-            y: y,
-            z: z
-        };
-    };
-
-    const len = v => Math.sqrt(v.x*v.x + v.y*v.y + v.z*v.z);
-
-    const normalize = v => {
-        const l = len(v);
-        return {
-            x: v.x / l,
-            y: v.y / l,
-            z: v.z / l
-        };
-    };
-
-    const dot = (a,b) => a.x * b.x + a.y * b.y + a.z * b.z;
-
-    const cross = (a,b) => vec3(
-        a.y * b.z - a.z * b.y,
-        a.z * b.x - a.x * b.z,
-        a.x * b.y - a.y * b.x
-    );
-
-    /*
-     * 行列計算
-     */
-
-    //OpenGLの仕様上、見た目は転置してるように見えるけどまぁそういうもん。
-    const mTranslate = (x,y,z) => [
-        1,0,0,0,
-        0,1,0,0,
-        0,0,1,0,
-        x,y,z,1
-    ];
-
-    const mRotate = (x,y,z,t) => {
-        const c = Math.cos(t);
-        const s = Math.sin(t);
-        return [
-            x*x*(1-c)+c, x*y*(1-c)+s*z, z*x*(1-c)-s*y, 0,
-            x*y*(1-c)-s*z, y*y*(1-c)+c, y*z*(1-c)+s*x, 0,
-            z*x*(1-c)+s*y, y*z*(1-c)-s*x, z*z*(1-c)+c, 0,
-            0,0,0,1
-        ];
-    };
-    const mScale = (x,y,z) => [
-        x,0,0,0,
-        0,y,0,0,
-        0,0,z,0,
-        0,0,0,1
-    ];
-
-    const lookAt = (eye, forward, up) => {
-        const side = normalize(cross(up, forward));
-        up = normalize(cross(forward, side));
-        return [
-            side.x, up.x, forward.x, 0,
-            side.y, up.y, forward.y, 0,
-            side.z, up.z, forward.z, 0,
-            -dot(eye, side), -dot(eye, up), -dot(eye, forward), 1
-        ];
-    };
-
-    const perspective = (asp, fov, near, far) => {
-        const t = Math.tan(fov / 2);
-        return [
-            1 / (asp * t),0,0,0,
-            0,1/t,0,0,
-            0,0,(near+far) / (near-far), -1,
-            0,0,2*near*far/(near-far),0
-        ];
-    };
-
-    const mult = (a,b) => {
-        const res = [];
-        for (let i = 0; i < 4; i++) {
-            for (let j = 0; j < 4; j++) {
-                let m = 0;
-                for (let k = 0; k < 4; k++) {
-                    m += a[i*4+k] * b[k*4+j];
-                }
-                res.push(m);
-            }
+    const sphereAttributes = [];
+    const getPoint = (t,p) => [Math.cos(t) * Math.cos(p), Math.sin(p), Math.sin(t) * Math.cos(p)].map(a => a * 4);
+    const getUV = (t,p) => [t / (2 * Math.PI) + 0.5, -p / Math.PI + 0.5];
+    for (let j = 0; j < 10; j++) {
+        const p = Math.PI * (j / 10 - 0.5);
+        const pn = Math.PI * ((j+1) / 10 - 0.5);
+        for (let i = 0; i < 40; i++) {
+            const t = Math.PI * 2 * i / 40;
+            const tn = Math.PI * 2 * (i+1) / 40;
+            sphereAttributes.push({
+                position: getPoint(t, p),
+                normal: getPoint(t, p),
+                uv: getUV(t, p)
+            });
+            sphereAttributes.push({
+                position: getPoint(t, pn),
+                normal: getPoint(t, pn),
+                uv: getUV(t, pn)
+            });
+            sphereAttributes.push({
+                position: getPoint(tn, p),
+                normal: getPoint(tn, p),
+                uv: getUV(tn, p)
+            });
+            sphereAttributes.push({
+                position: getPoint(tn, pn),
+                normal: getPoint(tn, pn),
+                uv: getUV(tn, pn)
+            });
         }
-        return res;
-    };
+    }
+    const sphereInfo = {};
+    const sphere = createObject(sphereAttributes, "sphere");
+    Promise.all([sphere, tex1]).then(res => {
+        const [sphere, tex1] = res;
+        sphereInfo.program = sphere.program;
+        sphereInfo.vao = sphere.vao;
+
+        gl.useProgram(sphere.program);
+        const texLocation = gl.getUniformLocation(sphere.program, "tex");
+        gl.uniform1i(texLocation, 1);
+    });
+
 
     /*
      * レンダリング
@@ -321,11 +134,6 @@
         requestAnimationFrame(render);
         gl.clearColor(0,0,0,1);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-        const colorLocation = gl.getUniformLocation(program, "color");
-        const eyeLocation = gl.getUniformLocation(program, "cameraEye");
-        const viewMatrixLocation = gl.getUniformLocation(program, "viewMatrix");
-        const projMatrixLocation = gl.getUniformLocation(program, "projMatrix");
-
         /*
          * カメラ計算
          */
@@ -333,15 +141,32 @@
         const forward = normalize(vec3(eye.x, eye.y, eye.z));
         const up = vec3(0,1,0);
         const viewMatrix = lookAt(eye, forward, up);
-        const projMatrix = perspective(1, Math.PI / 2, 0.1, 5);
+        const projMatrix = perspective(1, Math.PI / 3, 0.1, 5);
 
-        gl.uniformMatrix4fv(viewMatrixLocation, false, viewMatrix);
-        gl.uniformMatrix4fv(projMatrixLocation, false, projMatrix);
-        gl.uniform3f(colorLocation, 1,0,0);
-        gl.uniform3f(eyeLocation, eye.x, eye.y, eye.z);
-        for (let i = 0; i < 6; i++) {
-            gl.drawArrays(gl.TRIANGLE_STRIP, i*4, 4);
+        if (cubeInfo.program) {
+            const eyeLocation = gl.getUniformLocation(cubeInfo.program, "cameraEye");
+            const viewMatrixLocation = gl.getUniformLocation(cubeInfo.program, "viewMatrix");
+            const projMatrixLocation = gl.getUniformLocation(cubeInfo.program, "projMatrix");
+            gl.useProgram(cubeInfo.program);
+            ext.bindVertexArrayOES(cubeInfo.vao);
+            gl.uniformMatrix4fv(viewMatrixLocation, false, viewMatrix);
+            gl.uniformMatrix4fv(projMatrixLocation, false, projMatrix);
+            gl.uniform3f(eyeLocation, eye.x, eye.y, eye.z);
+            for (let i = 0; i < 6; i++) {
+                gl.drawArrays(gl.TRIANGLE_STRIP, i*4, 4);
+            }
         }
+        if (sphereInfo.program) {
+            const viewMatrixLocation = gl.getUniformLocation(sphereInfo.program, "viewMatrix");
+            const projMatrixLocation = gl.getUniformLocation(sphereInfo.program, "projMatrix");
+            gl.useProgram(sphereInfo.program);
+            ext.bindVertexArrayOES(sphereInfo.vao);
+            gl.uniformMatrix4fv(viewMatrixLocation, false, viewMatrix);
+            gl.uniformMatrix4fv(projMatrixLocation, false, projMatrix);
+            gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4 * 40 * 10);
+        }
+
         gl.flush();
     };
+    requestAnimationFrame(render);
 })();
