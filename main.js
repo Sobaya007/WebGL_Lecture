@@ -16,11 +16,16 @@
         document.body.innerHTML = "WebGLの拡張機能が使えません。お使いのブラウザはクソ!w";
         return;
     }
+    if(!gl.getExtension('OES_standard_derivatives')){
+        document.body.innerHTML = "WebGLの拡張機能が使えません。お使いのブラウザはクソ!w";
+        return;
+    }
     const createObject = makeCreateObject(gl, ext);
     const createTexture = makeCreateTexture(gl);
 
     const tex0 = createTexture("./dman.png");
     const tex1 = createTexture("./skydome.png");
+    const normalMap = createTexture("./dman_normal.png");
 
     /*
      * Cube
@@ -59,13 +64,14 @@
     }
     const cube = createObject(cubeAttributes, "cube");
 
-    Promise.all([cube, tex0, tex1]).then(res => {
-        const [cube, tex0, tex1] = res;
+    Promise.all([cube, tex0, tex1, normalMap]).then(res => {
+        const [cube, tex0, tex1, normalMap] = res;
         cubeInfo.program = cube.program;
         cubeInfo.vao = cube.vao;
 
         const texLocation = gl.getUniformLocation(cube.program, "tex");
         const spheremapLocation = gl.getUniformLocation(cube.program, "spheremap");
+        const normalmapLocation = gl.getUniformLocation(cube.program, "normalmap");
 
         gl.useProgram(cube.program);
         gl.activeTexture(gl.TEXTURE0);
@@ -74,6 +80,9 @@
         gl.activeTexture(gl.TEXTURE1);
         gl.bindTexture(gl.TEXTURE_2D, tex1);
         gl.uniform1i(spheremapLocation, 1);
+        gl.activeTexture(gl.TEXTURE2);
+        gl.bindTexture(gl.TEXTURE_2D, normalMap);
+        gl.uniform1i(normalmapLocation, 2);
     });
 
     /*

@@ -1,20 +1,34 @@
+#extension GL_OES_standard_derivatives : enable
 precision mediump float;
 
-uniform vec3 cameraEye;
 uniform sampler2D tex;
 uniform sampler2D spheremap;
-varying vec3 vPosition;
+uniform sampler2D normalmap;
+varying vec3 viewPosition;
+varying vec3 viewNormal;
 varying vec3 vNormal;
 varying vec2 vUV;
+varying vec3 viewLightDir;
 
 #define PI 3.1415926535
 
 void main() {
-    const vec3 lightDir = normalize(vec3(+1,-1,0));
-    vec3 toCamera = normalize(vPosition - cameraEye);
-    vec3 lightRef = normalize(reflect(lightDir, normalize(vNormal)));
+    float tanx = -dFdy(vUV.t) * viewNormal.z;
+    float tany = dFdx(vUV.t) * viewNormal.z;
+    float tanz = -(viewNormal.x * tanx + viewNormal.y * tany);
+    vec3 tan = normalize(vec3(tanx, tany, tanz));
+    vec3 bin = normalize(cross(viewNormal, tan));
+    vec4 normalElements = texture2D(normalmap, vUV) - vec4(0.5);
+    const float scale = 10.;
+    vec3 normal = normalize(
+            tan * normalElements.r * scale +
+            bin * normalElements.g * scale +
+            viewNormal * normalElements.b);
+
+    vec3 toCamera = normalize(viewPosition);
+    vec3 lightRef = normalize(reflect(viewLightDir,normal));
     float amb = 0.2;
-    float dif = max(0., dot(normalize(vNormal), lightDir));
+    float dif = max(0., dot(normal, viewLightDir));
     float spc = pow(max(0., dot(toCamera, lightRef)), 10.);
     vec3 color = texture2D(tex, vUV).rgb;
 
