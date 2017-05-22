@@ -1,94 +1,133 @@
-# 法線マップ
+# OpenGL講習会
+## オフスクリーンレンダリング
 
-次は法線マップというのをやってみます。
-前回の物体は完全な立方体でしたが、実際のゲームなどではきれいな平面というのは登場の出番が少ないです。
-というのも、自然物というのは基本的に凸凹しているもので、それを平面として近似するとあまりに見た目がお粗末になってしまうからです。
-これの(リアリティという観点から言って)最も良い解決策はおそらく、凸凹している物体にはそういう形を持った頂点集合を与えてやることでしょう。ですが、この解決策が現実味を欠いていることは用意に想像できます。
-なぜなら、頂点を増やすとポリゴンが増え、ポリゴンが増えると一般に描画速度が低下するからです。
-リアリティのある凹凸を作りたければそれなりのポリゴン数が要求され、それは現実的に不可能。
-となればやはり"なんちゃって"で作られたコスパの良い凸凹を作ろうという目論見もあって然るべきです。
-その一例がこの**法線マップ**です。
+Off(離れて) Screen Renderingということで、「画面以外への描画」というのをやってみようと思います。画面以外というのは、ずばり**テクスチャ**です。
 
-法線マップには、ある特別なテクスチャを使います。今回はこの[某言語](https://dlang.org/download.html)くんを使ってみます。
-![](dman_normal.png)
-見てみると、ほとんどが白っぽい青色で、輪郭部分だけ色が変わっています。
-実はこれ、**RGBが法線ベクトルと対応している**んです。
-つまり、向かって右方向をX正方向、上方向をY正方向、手前をZ方向としたとき、RGB = (1.0, 0.5, 0.5)なら法線は右向き、RGB = (0.5, 0.0, 0.5)なら法線は下向きですよ、ということになっています。(RGBは0~1の範囲に収まるため、負の数を表現するために0.5を原点とします。)
-このような特殊な画像と、これを使った手法をどちらも**法線マップ**と呼びます。
-法線マップの作り方はいくつかありますが、最近だと[ここ](http://cpetry.github.io/NormalMap-Online/)みたいなサイトを使うといったのがお手軽ですね。ちなみに私は昔入れたGIMPのプラグインで作りました。
+テクスチャに描画することによって、例えば「画面すべての色を反転する」といった「画面そのものへの干渉」が可能となります。
 
-さて、もう法線マップの意味が想像できたでしょうか？
-要は平面は平面でも**法線が**凸凹してればある程度ごまかせるのでは？という発想です。
-具体的にはPhongシェーディングの計算に使う法線を、JavaScriptからattributeとして与えられたものをそのまま使わずにこの法線マップを使ってちょっと加工したものを使うことで光の反射具合をそれっぽくします。
-Phongシェーディングに限らず法線を使う他のレンダリング手法に対しても有効です。
+オフスクリーンレンダリングは、例えばもっと忠実な鏡の演出、影の描画、あるいはポストエフェクト(先ほどの例のような画面そのものへの干渉)といった幅広い応用が利く技術です。
 
-ただここでちょぴっと数学をしないと実現できないので数学をします。
+今回のサンプルでは色の反転、いわゆるネガポジ反転というのを画面の半分に掛けていました。
 
-## 法線マップのための数学\~空間\~
-OpenGLで計算をするとき、よく「空間」というワードが出てきます。
-ここでいう「空間」とは「原点の位置」と「座標軸(直交基底)」の組だと思って間違いないです。
-同じ点でも、空間ごとに違う座標で記述されます。ある空間での座標を違う空間の座標に移し替えることを**座標変換**と呼び、OpenGL内ではほぼ線形変換です。つまり、行列の積で座標変換は記述できます。
-3Dでよく使われる空間は以下の通りです。
-- Local Space
-モデルデータの頂点座標が保存された空間。物体ごとに存在する。モデリングソフトで吐かれるデータに書いてある座標はこれ。
-- World Space
-すべての物体に対して共通の空間。適当に1つ定めてあればよい。
-- View Space
-原点がカメラの位置、基底もカメラの向きと平行になっている空間。カメラごとに存在する。
-- Projection Space
-遠近法がかかったあとの空間。基本的にView Spaceと同じだが座標の縮尺が違い、この空間内で$(-1,-1,-1)$から$(+1,+1,+1)$までの立方体領域に入っている物体だけが描画される。
-- Tangent Space
-接空間と訳す。物体の表面のある点$\vec p$に対して、$\vec p$を原点とし、$\vec p$における物体の法線を基底の1つとする空間をTangent Spaceと呼ぶ。したがって、無数にある。
-Tangent Spaceの3つの座標軸には特別にtangent vector(接線), binormal vector(従法線), normal vector(法線)という呼び名がついている。
+動作原理はこんなかんじです。
 
-普段の計算ではWorld Spaceを使います。諸々の計算が終わって、最終的に画面にモノを表示する段階になったらWorld SpaceからView Spaceを通ってProjection Spaceにまで座標を持っていき、ポリゴンを貼ります。
+1. 物体をテクスチャに対して描画する
+1. 物体をスクリーンに対して描画する
+1. テクスチャを反転して描画するシェーダを用いて、画面の右半分にテクスチャを乗せた長方形を描画
 
-Phong shadingの計算などはWorld Spaceで行っていました。
-法線マップに記述された法線ベクトルはTangent Spaceにおけるものです。
+テクスチャにモノを書き込めるという事実を知っていれば、原理自体は大したことではないはずです。
+では実際にOpenGL語ではどういう風に動いているのかを見ていってみましょう。
 
-## 法線マップのための数学\~GLSLと偏微分\~
-GLSLでは`dFdx`と`dFdy`という関数があります。引数に来た値の、View Spaceにおけるx方向とy方向の偏微分を取るという関数です。z方向にはとれません。
-これを使って例えば`dFdx(vUV.x)`と書けば$\frac {\partial \text{vUV.x}} {\partial x}$が取得できます。
+## Frame Buffer Object
+はいまたOpenGL用語です。「また〇〇 Buffer Objectかよ...」とうんざりするかもしれませんが、頑張って食らいついてほしいです。(ちなみに筆者はもううんざりしています)
+まぁとにかく前述した「テクスチャへの描画」というものの実現にはこのFrame Buffer Object、通称FBOというものを使わざるを得ないのです。
 
-## 法線マップのための数学\~偏微分とTangent Space\~
-法線マップにある情報はTangent Spaceにおけるものですが、これはそのままでは使えません。
-World Spaceに来てくれると嬉しいのですが(Phong ShadingはWorld Spaceで行っていたため)、それはちょっとめんどくさいのでView Spaceにとりあえず持ってくることにします。
-(Phong Shadingの計算自体はどの空間でもできるので、逆にそれをView Spaceでやることにします。)
+さて、今まで画面にモノを描いて来ましたが、画面のピクセル上にはどんな情報が乗っているのでしょう？
+まず、色です。RGBですね。
+それから、深度値というのがあったのを覚えているでしょうか？「現在そのピクセルに描かれているものがどのくらいの深さ(画面からの遠さ)にあるか」という値をピクセルに埋め込んで、それを見ることで一番手前側の物体を描画するようになっていました。
+これらはOpenGL的にはColor Buffer, Depth Bufferという名前をしており、ピクセルを構成する要素として定義されています。ここでは説明しませんが、実は他にもピクセルを構成する要素があり、Stencil BufferとかAccumulation Bufferなんていう名前をしています。
+ということで、一口に「画面」と言っても正確にはColor Buffer, Depth Buffer, Stencil Buffer, Accumulation Bufferをすべてひっくるめているわけです。
+そして、これらをすべてひっくるめたものを、OpenGLではFrameと呼んでいます。このFrameを操るのがFBOです。
+また、Color BufferやDepth Bufferなんかを総称してRender Bufferと呼んでいます。
+![](FBO.png)
 
-あるView Space$V$を考えます。$V$上の点は$(x,y,z)$と表されます。
-$V$上にある物体の表面の点$\vec p(\in V)$における微小平面$P$にテクスチャが張られているとします。
-$\vec p$におけるUV座標の座標軸の向きを$\vec u, \vec v(\in V)$とし、法線を$\vec n$とします。
-$\vec p$を原点とし、基底のうち2本を$\vec u, \vec v$とする空間はTangent Spaceを為します。この空間を$T$とします。
-$T$上の点のうち、$P$の上にあるものを基底$\vec u, \vec v$に対する2次元座標$(s,t)$で表現することにします。
-我々の目的は、$\vec u, \vec v$を$\frac {\partial s} {\partial x}, \frac {\partial s} {\partial y}, \frac {\partial t} {\partial x}, \frac {\partial t} {\partial y}, \vec n$を用いて表すことです。
+これらはOpenGLのAPIでGPU上に作ることもできますが、デフォルトで必ず1つは存在しています。(でないと画面上に色も深度値も保存できないです。)
 
-$V$上で$(x,y,0)$を通り$z$軸と平行な直線と平面$P$は(平行でなければ)交点を1つ持つことから、$(x,y)$を指定すると$P$上の点における空間$T$での座標$(s,t)$が一意に定まります。
-$x$が$\Delta x$だけ動くと、$s$は$\frac {\partial s} {\partial x}\Delta x$だけ動きます。
-したがって、$(x,y)$が$(\Delta x, \Delta y)$だけ動くと、$s$は$\frac {\partial s} {\partial x}\Delta x + \frac {\partial s} {\partial y}\Delta y$だけ動きます。$t$も同様です。
-もし$(x,y,z)$が$\vec u$と平行に移動したなら、$t$の値は変動しないはずです。
-つまり、$(\Delta x, \Delta y, \Delta z) \parallel \vec u$なら$\Delta t = 0$となるはずです。
-このことから、
-$$\frac {\partial t} {\partial x} u_x + \frac {\partial t} {\partial y} u_y = 0$$
-を満たします。
-また、$\vec u$は$T$の直交基底なので、$\vec u \cdot \vec n = 0$となります。
-最後に、$|\vec u| = 1$という条件を課すと、各成分のスケールはどうでもいいことになりますので、
-$$\vec u = normalize \left( \begin{array}{c} -\frac {\partial t}{\partial y}n_z \\ \frac {\partial t}{\partial x}n_z \\ \frac {\partial t}{\partial y}n_x - \frac {\partial t}{\partial x} n_y\end{array} \right)$$
-となります。
-$t$を$s$に変えることで、$\vec v$も求まります。
+FBOの準備方法は次のようなかんじになります。
 
+1. Frame Bufferを作る
+1. 必要なRender Bufferがあればそれを作る
+1. Render BufferをFrame Bufferと関連付ける
 
-以上を踏まえると、次のようなコードで新たな法線が手に入ります。
-```glsl
-float tanx = -dFdy(vUV.t) * viewNormal.z;
-float tany = dFdx(vUV.t) * viewNormal.z;
-float tanz = -(viewNormal.x * tanx + viewNormal.y * tany);
-vec3 tan = normalize(vec3(tanx, tany, tanz));
-vec3 bin = normalize(cross(viewNormal, tan));
-vec4 normalElements = texture2D(normalmap, vUV) - vec4(0.5);
-const float scale = 10.;
-vec3 normal = normalize(
-        tan * normalElements.r * scale +
-        bin * normalElements.g * scale +
-        viewNormal * normalElements.b);
+これはまぁこういうものです。「じゃあFrame BufferとかRender Bufferとかって何が便利なの？」と思うわけですが、なんとこれだけでは何にも使えません。
+これが揃うと、「仮想的な画面上への描画」が可能にはなります。が、それだけです。GPU上ではうまく動いていますが、それが画面に反映されることはありません。
+そこで、OpenGLでは**Render BufferとTextureを入れ替えてもいいよ**というルールを追加してあります。
+これにより、例えばColor Bufferの部分をRender BufferではなくTextureにしておけば、そこの描画結果の色情報が手に入ります。あるいは、Depth BufferのほうをTextureに変えればそこの深度値がテクスチャとして受け取れます。
+つまり、ただ画面の色状態を取得したい場合には以下のような処理をします。
+
+1. Frame Bufferを作る
+1. Color Buffer用のTextureを用意する
+1. TextureをColor BufferとしてFrame Bufferと関連付ける
+1. Depth Buffer用のRender Bufferを用意する
+1. Render BufferをDepth BufferとしてFrame Bufferと関連付ける
+
+私は最初これをやったとき、「欲しいのは色情報なんだからDepth Buffer用のRender Bufferって要るの？」と思ったのですが、それがないと深度テストができなくなるのでもちろん必要なんですよね。
+
+ということで実際のコードはこんなかんじになります。
+
+```javascript
+/* Render Buffer (for Depth) */
+const renderBuffer = gl.createRenderbuffer();
+gl.bindRenderbuffer(gl.RENDERBUFFER, renderBuffer);
+gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, 512, 512); //512x512でDepth Buffer用のRender Bufferという設定にする
+gl.bindRenderbuffer(gl.RENDERBUFFER, null);
+
+/* Target Texture */
+const targetTexture = gl.createTexture();
+gl.bindTexture(gl.TEXTURE_2D, targetTexture);
+gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 512, 512, 0, gl.RGBA, gl.UNSIGNED_BYTE, null); //RGBAを格納できる512x512のテクスチャを作る。初期値はnull。
+//以下3行はあんまり意味がない(コピペ)
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+gl.generateMipmap(gl.TEXTURE_2D);
+gl.bindTexture(gl.TEXTURE_2D, null);
+
+/* Frame Buffer */
+const frameBuffer = gl.createFramebuffer();
+gl.bindFramebuffer(gl.FRAMEBUFFER, frameBuffer);
+gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, renderBuffer); // Frame BufferにDepth用のRender Bufferを関連付け
+
+gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, targetTexture, 0); // Fraem BufferにColor用のTextureを関連付け
+gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+...
+/* テクスチャへのレンダリング */
+gl.viewport(0,0,512,512);
+gl.bindFramebuffer(gl.FRAMEBUFFER, frameBuffer);
+renderScene(eye, forward, up);
+
+/* 普通のレンダリング */
+gl.viewport(0,0,canvas.width, canvas.height);
+gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+renderScene(eye, forward, up);
+if (planeInfo.program) {
+    const texLocation = gl.getUniformLocation(planeInfo.program, "tex");
+    gl.useProgram(planeInfo.program);
+    gl.activeTexture(gl.TEXTURE3);
+    gl.bindTexture(gl.TEXTURE_2D, targetTexture);
+    gl.uniform1i(texLocation, 3);
+    ext.bindVertexArrayOES(planeInfo.vao);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
 ```
-そのままだと法線マップの効果が弱いので、適当に横方向のベクトルを伸ばすことで強くしています。
+
+作ったFrame BufferをbindするとそのFrameへの書き込みが開始します。bindを解除するとデフォルトのFrame Buffer(スクリーン)に描画されます。
+`gl.viewport`という関数が登場しましたが、これは描画対象の矩形領域を指定する関数です。
+描画対象のFrameの大きさに合わせて描画対象領域も変えているというわけですね。
+
+```glsl
+attribute vec3 position;
+attribute vec2 uv;
+
+varying vec2 vUV;
+
+void main() {
+    gl_Position = vec4(position, 1);
+    vUV = uv;
+}
+```
+```glsl
+precision mediump float;
+
+varying vec2 vUV;
+uniform sampler2D tex;
+
+void main() {
+    vec2 uv = vUV;
+    uv.x = uv.x * .5 + .5;
+    gl_FragColor = texture2D(tex, uv);
+    gl_FragColor.rgb = vec3(1) - gl_FragColor.rgb;
+}
+```
+四角形は3Dとかガン無視で普通に画面の右半分に置きたかったので、カメラ用の行列などは掛けずに直に`gl_Position`に流しています。
+色の反転は元の色を1から引いているだけですね。

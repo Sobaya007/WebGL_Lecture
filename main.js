@@ -131,24 +131,70 @@
         gl.uniform1i(texLocation, 1);
     });
 
+    /* Render Buffer (for Depth) */
+    const renderBuffer = gl.createRenderbuffer();
+    gl.bindRenderbuffer(gl.RENDERBUFFER, renderBuffer);
+    gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, 512, 512);
+    gl.bindRenderbuffer(gl.RENDERBUFFER, null);
+
+    /* Target Texture */
+    const targetTexture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, targetTexture);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 512, 512, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.generateMipmap(gl.TEXTURE_2D);
+    gl.bindTexture(gl.TEXTURE_2D, null);
+
+    /* Frame Buffer */
+    const frameBuffer = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, frameBuffer);
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, renderBuffer);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, targetTexture, 0);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+
+    const planeAttributes = [
+        {
+            position: [0, -1, 0],
+            uv: [0,0]
+        },
+        {
+            position: [+1, -1, 0],
+            uv: [1,0]
+        },
+        {
+            position: [0, +1, 0],
+            uv: [0,1]
+        },
+        {
+            position: [+1, +1, 0],
+            uv: [1,1]
+        },
+    ];
+    const planeInfo = {};
+    const plane = createObject(planeAttributes, "plane");
+    plane.then(plane => {
+        planeInfo.program = plane.program;
+        planeInfo.vao = plane.vao;
+
+        const texLocation = gl.getUniformLocation(plane.program, "tex");
+        gl.useProgram(plane.program);
+        gl.activeTexture(gl.TEXTURE3);
+        gl.bindTexture(gl.TEXTURE_2D, targetTexture);
+        gl.uniform1i(texLocation, 3);
+    });
 
     /*
      * レンダリング
      */
     gl.enable(gl.DEPTH_TEST);
-    const eye = vec3(0, 0.4, 1);
-    const c = Math.cos(0.01);
-    const s = Math.sin(0.01);
-    const render = _ => {
-        requestAnimationFrame(render);
+
+    const renderScene = (eye, forward, up) => {
         gl.clearColor(0,0,0,1);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         /*
          * カメラ計算
          */
-        [eye.x, eye.z] = [eye.x * c - eye.z * s, eye.x * s + eye.z * c];
-        const forward = normalize(vec3(eye.x, eye.y, eye.z));
-        const up = vec3(0,1,0);
         const viewMatrix = lookAt(eye, forward, up);
         const projMatrix = perspective(1, Math.PI / 3, 0.1, 5);
 
@@ -173,6 +219,37 @@
             gl.uniformMatrix4fv(viewMatrixLocation, false, viewMatrix);
             gl.uniformMatrix4fv(projMatrixLocation, false, projMatrix);
             gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4 * 40 * 10);
+        }
+    };
+
+    const eye = vec3(0, 0.4, 1);
+    const c = Math.cos(0.01);
+    const s = Math.sin(0.01);
+    const up = vec3(0,1,0);
+
+    const render = _ => {
+        requestAnimationFrame(render);
+
+        [eye.x, eye.z] = [eye.x * c - eye.z * s, eye.x * s + eye.z * c];
+        const forward = normalize(vec3(eye.x, eye.y, eye.z));
+
+        /* テクスチャへのレンダリング */
+        gl.viewport(0,0,512,512);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, frameBuffer);
+        renderScene(eye, forward, up);
+
+        /* 普通のレンダリング */
+        gl.viewport(0,0,canvas.width, canvas.height);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        renderScene(eye, forward, up);
+        if (planeInfo.program) {
+            const texLocation = gl.getUniformLocation(planeInfo.program, "tex");
+            gl.useProgram(planeInfo.program);
+            gl.activeTexture(gl.TEXTURE3);
+            gl.bindTexture(gl.TEXTURE_2D, targetTexture);
+            gl.uniform1i(texLocation, 3);
+            ext.bindVertexArrayOES(planeInfo.vao);
+            gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
         }
 
         gl.flush();
