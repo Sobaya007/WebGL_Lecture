@@ -48,6 +48,13 @@ const perspective = (asp, fov, near, far) => {
     ];
 };
 
+const ortho = (width, height, near, far) => [
+    2/width, 0, 0, 0,
+    0, 2/height, 0, 0,
+    0, 0, 2/(near-far), 0,
+    0, 0, (near+far)/(near-far),1
+];
+
 const mult = (a,b) => {
     const res = [];
     for (let i = 0; i < 4; i++) {

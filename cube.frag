@@ -4,8 +4,12 @@ precision mediump float;
 uniform sampler2D tex;
 uniform sampler2D spheremap;
 uniform sampler2D normalmap;
+uniform sampler2D shadowMap;
+uniform mat4 shadowViewMatrix;
+uniform mat4 shadowProjMatrix;
 varying vec3 viewPosition;
 varying vec3 viewNormal;
+varying vec4 vPosition;
 varying vec3 vNormal;
 varying vec2 vUV;
 varying vec3 viewLightDir;
@@ -39,4 +43,18 @@ void main() {
 
     gl_FragColor = vec4(vec3((amb + dif) * color + spc * 0.5), 1);
     gl_FragColor.rgb = 0.8 * gl_FragColor.rgb + refColor * 0.2;
+
+    // Shadow!! FOOOOOOOOOOOOOOOOOOOOOOOO
+    vec4 pos4FromLight = shadowProjMatrix * shadowViewMatrix * vPosition;
+    vec3 posFromLight = pos4FromLight.xyz / pos4FromLight.w;
+    vec2 shadowUV = posFromLight.xy * 0.5 + 0.5;
+    if (0. <= shadowUV.x && shadowUV.x <= 1.
+            && 0. <= shadowUV.y && shadowUV.y <= 1.) {
+        float shadowMapZ = texture2D(shadowMap, shadowUV).r;
+        float zFromLight = posFromLight.z * 0.5 + 0.5;
+
+        if (zFromLight > shadowMapZ + 0.01) {
+            gl_FragColor.rgb *= 0.5;
+        }
+    }
 }

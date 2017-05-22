@@ -1,133 +1,111 @@
 # OpenGL講習会
-## オフスクリーンレンダリング
+## $\dagger$闇$\dagger$
+世界をリアルに見せる方法として強力なのは光の存在です。
+レンダリング技術のほとんどがこの光をどれだけ適当にシミュレートするかにかかっています。
+光を光たらしめるためにはどうしても光と対になる影の存在が重要です。
+正確には「影(Shadow)」と「陰(Shade)」があり、陰を作るのは比較的簡単ですが影を作るのは至難の業です。
+というのも、簡単な陰はもうすでに作っています。Phong Shadingです。
+Phong Shadingで光の当たらない箇所は暗く描画されるようになっていました。あれが陰です。
+一方影はいままで使った技術をフル動員しないと作ることができません。
+いまから説明する方法で作られる影はとても基本的で視覚効果の薄いものですが、派生する様々な影生成技術の根幹を担う考え方ですので、ぜひ覚えてみましょう。
 
-Off(離れて) Screen Renderingということで、「画面以外への描画」というのをやってみようと思います。画面以外というのは、ずばり**テクスチャ**です。
+## 影の生成
+オフスクリーンレンダリングのとき、Render Buffer(Color BufferやDepth Buffer)には代わりにテクスチャを利用できると書きました。それを利用しColor Bufferにテクスチャをアタッチすることでネガポジ反転を実装したわけですが、影を作るにはDepth Bufferを使います。
+単純な話、「影ができる場所」というのは「光源から見えない場所」ということになります。
+すると「光源の位置にカメラを置いて、そこから見えるかどうかで影の有無を決定する」というのは自然な発想でしょう。
 
-テクスチャに描画することによって、例えば「画面すべての色を反転する」といった「画面そのものへの干渉」が可能となります。
+この工程を分割してみます。
+1. 光源の位置にカメラを置く
+1. 光源カメラで物体をオフスクリーンレンダリングする
+1. オフスクリーンレンダリングされた画像を参考にして影の有無を判定
 
-オフスクリーンレンダリングは、例えばもっと忠実な鏡の演出、影の描画、あるいはポストエフェクト(先ほどの例のような画面そのものへの干渉)といった幅広い応用が利く技術です。
+1と2は普通にできそうな気がします。
+「カメラを置く」というのは「カメラの位置と向きを定義する」に相当するので定義すればいいだけですし、そこからのオフスクリーンレンダリングも前回やった通りにすればできます。
+となると3が一番曖昧かつ厄介なテーマです。
 
-今回のサンプルでは色の反転、いわゆるネガポジ反転というのを画面の半分に掛けていました。
+光源からの景色をオフスクリーンレンダリングしたテクスチャを**Shadow Buffer**と呼ぶことにしますが、これには深度値の情報がDepth Bufferとして入っています。
+深度値とは何だったかもう一度説明しておくと、形式的には「射影変換後のZ座標の最小値」で直感的には「そのピクセルにおいて描画されている物体とカメラとの距離(みたいなもの)」です。
+つまりShadow Bufferを見ると、その位置に見える物体がカメラとどれくらいの距離にあるかがわかります。
+これがどうも使えそうです。
 
-動作原理はこんなかんじです。
+ある点$\vec p$に影がかかるかは以下のように調べられます。
+1. $\vec p$を光源視点での射影空間上の点$\vec p_{sp}$に変換する
+1. $\vec p_{sp}$の深度値を算出
+1. $\vec p_{sp}$の$x,y$をShadow BufferのUVと対応させて光源から見たその地点での深度値を取得
+1. 2つの深度値を比較し、$\vec p_{sp}$の深度値のほうが大きかったら影があることにする
 
-1. 物体をテクスチャに対して描画する
-1. 物体をスクリーンに対して描画する
-1. テクスチャを反転して描画するシェーダを用いて、画面の右半分にテクスチャを乗せた長方形を描画
+2で得られた深度値がその地点の光源からの深度値で、3で得られた深度値がその地点と光源を結ぶ線分の中で一番光源に近いものの深度値です。
+![](shadow.png)
 
-テクスチャにモノを書き込めるという事実を知っていれば、原理自体は大したことではないはずです。
-では実際にOpenGL語ではどういう風に動いているのかを見ていってみましょう。
+### 平行光源とOrthographic Camera
+光源の位置にカメラを置くと書きました。
+カメラから見える景色によって影ができるなら、光源に置いたカメラの視界の形によって光の進み方が定義されるはずです。
+例えば、前回まで扱ってきた射影変換行列を使うと、視界の範囲は四角錘台になります。
+この形は奥が広がっているため、影の形も奥が広がったようになります。つまり点光源のように作用するわけですね。
+![](shadow2.png)
 
-## Frame Buffer Object
-はいまたOpenGL用語です。「また〇〇 Buffer Objectかよ...」とうんざりするかもしれませんが、頑張って食らいついてほしいです。(ちなみに筆者はもううんざりしています)
-まぁとにかく前述した「テクスチャへの描画」というものの実現にはこのFrame Buffer Object、通称FBOというものを使わざるを得ないのです。
+これはこれで需要があると思うのですが、今回に関しては
+- 調整が面倒
+- 太陽光線のようにしたいので、角度がつくのはおかしい
 
-さて、今まで画面にモノを描いて来ましたが、画面のピクセル上にはどんな情報が乗っているのでしょう？
-まず、色です。RGBですね。
-それから、深度値というのがあったのを覚えているでしょうか？「現在そのピクセルに描かれているものがどのくらいの深さ(画面からの遠さ)にあるか」という値をピクセルに埋め込んで、それを見ることで一番手前側の物体を描画するようになっていました。
-これらはOpenGL的にはColor Buffer, Depth Bufferという名前をしており、ピクセルを構成する要素として定義されています。ここでは説明しませんが、実は他にもピクセルを構成する要素があり、Stencil BufferとかAccumulation Bufferなんていう名前をしています。
-ということで、一口に「画面」と言っても正確にはColor Buffer, Depth Buffer, Stencil Buffer, Accumulation Bufferをすべてひっくるめているわけです。
-そして、これらをすべてひっくるめたものを、OpenGLではFrameと呼んでいます。このFrameを操るのがFBOです。
-また、Color BufferやDepth Bufferなんかを総称してRender Bufferと呼んでいます。
-![](FBO.png)
+という観点から、平行光源を採用しています(前回までもPhong Shadingで利用していたのは平行光源でした)。
 
-これらはOpenGLのAPIでGPU上に作ることもできますが、デフォルトで必ず1つは存在しています。(でないと画面上に色も深度値も保存できないです。)
+よって、図はこんなかんじになります。
+![](shadow3.png)
 
-FBOの準備方法は次のようなかんじになります。
+「光源」というのはもはやなく、漠然と方向だけがあるかんじです。
+これを使わないとまっすぐに影が伸びません。
 
-1. Frame Bufferを作る
-1. 必要なRender Bufferがあればそれを作る
-1. Render BufferをFrame Bufferと関連付ける
+ですがこれを実現するためには前回まで使っていた射影変換の行列を使えません。
+結論から言うと、カメラのパラメータは幅$w$, 高さ$h$, near clipを$n$, far clipを$f$として
 
-これはまぁこういうものです。「じゃあFrame BufferとかRender Bufferとかって何が便利なの？」と思うわけですが、なんとこれだけでは何にも使えません。
-これが揃うと、「仮想的な画面上への描画」が可能にはなります。が、それだけです。GPU上ではうまく動いていますが、それが画面に反映されることはありません。
-そこで、OpenGLでは**Render BufferとTextureを入れ替えてもいいよ**というルールを追加してあります。
-これにより、例えばColor Bufferの部分をRender BufferではなくTextureにしておけば、そこの描画結果の色情報が手に入ります。あるいは、Depth BufferのほうをTextureに変えればそこの深度値がテクスチャとして受け取れます。
-つまり、ただ画面の色状態を取得したい場合には以下のような処理をします。
+$\left( \begin{array}{cccc} 
+\frac 2 w & 0 & 0 & 0 \\\\
+0 & \frac 2 h & 0 & 0 \\\\
+0 & 0 & \frac 2 {n-f} & \frac {n+f} {n-f} \\\\
+0 & 0 & 0 & 1 \\\\
+\end{array} \right)$
 
-1. Frame Bufferを作る
-1. Color Buffer用のTextureを用意する
-1. TextureをColor BufferとしてFrame Bufferと関連付ける
-1. Depth Buffer用のRender Bufferを用意する
-1. Render BufferをDepth BufferとしてFrame Bufferと関連付ける
+で定義される行列が平行光源版の射影変換行列です。
+これはただ単純にパラメータで与えられた直方体領域を、各頂点の座標が1か-1となるような領域に正規化するだけのもので、以前やった遠近法のようなことはしません。
 
-私は最初これをやったとき、「欲しいのは色情報なんだからDepth Buffer用のRender Bufferって要るの？」と思ったのですが、それがないと深度テストができなくなるのでもちろん必要なんですよね。
+これで平行光源が定義できます。
 
-ということで実際のコードはこんなかんじになります。
+### 影の実装
+以上で道具はすべてそろったので、導入するだけです。
+注意として、テクスチャへの読み書きは同時には行えないので影用のテクスチャを2枚用意しておき毎フレーム入れ替えるという処理が必要となります。
 
-```javascript
-/* Render Buffer (for Depth) */
-const renderBuffer = gl.createRenderbuffer();
-gl.bindRenderbuffer(gl.RENDERBUFFER, renderBuffer);
-gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, 512, 512); //512x512でDepth Buffer用のRender Bufferという設定にする
-gl.bindRenderbuffer(gl.RENDERBUFFER, null);
-
-/* Target Texture */
-const targetTexture = gl.createTexture();
-gl.bindTexture(gl.TEXTURE_2D, targetTexture);
-gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 512, 512, 0, gl.RGBA, gl.UNSIGNED_BYTE, null); //RGBAを格納できる512x512のテクスチャを作る。初期値はnull。
-//以下3行はあんまり意味がない(コピペ)
-gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-gl.generateMipmap(gl.TEXTURE_2D);
-gl.bindTexture(gl.TEXTURE_2D, null);
-
-/* Frame Buffer */
-const frameBuffer = gl.createFramebuffer();
-gl.bindFramebuffer(gl.FRAMEBUFFER, frameBuffer);
-gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, renderBuffer); // Frame BufferにDepth用のRender Bufferを関連付け
-
-gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, targetTexture, 0); // Fraem BufferにColor用のTextureを関連付け
-gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-
+重要な箇所は影を描画するフラグメントシェーダ部分のみなので、そこだけ抽出して書きます。
+```glsl
 ...
-/* テクスチャへのレンダリング */
-gl.viewport(0,0,512,512);
-gl.bindFramebuffer(gl.FRAMEBUFFER, frameBuffer);
-renderScene(eye, forward, up);
+//光源から見た座標
+vec4 pos4FromLight = shadowProjMatrix * shadowViewMatrix * vPosition;
+//4次元から3次元に変換
+vec3 posFromLight = pos4FromLight.xyz / pos4FromLight.w;
+//Shadow BufferのUV座標を算出
+vec2 shadowUV = posFromLight.xy * 0.5 + 0.5;
+//UVの範囲を見てあげる(そうしないと、範囲外の部分はループしてしまい辺な影が出る可能性がある)
+if (0. <= shadowUV.x && shadowUV.x <= 1.
+  && 0. <= shadowUV.y && shadowUV.y <= 1.) {
+  // Shadow Buffer上の深度値
+  float shadowMapZ = texture2D(shadowMap, shadowUV).r;
+  // 実際の深度値
+  float zFromLight = posFromLight.z * 0.5 + 0.5;
 
-/* 普通のレンダリング */
-gl.viewport(0,0,canvas.width, canvas.height);
-gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-renderScene(eye, forward, up);
-if (planeInfo.program) {
-    const texLocation = gl.getUniformLocation(planeInfo.program, "tex");
-    gl.useProgram(planeInfo.program);
-    gl.activeTexture(gl.TEXTURE3);
-    gl.bindTexture(gl.TEXTURE_2D, targetTexture);
-    gl.uniform1i(texLocation, 3);
-    ext.bindVertexArrayOES(planeInfo.vao);
-    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  if (zFromLight > shadowMapZ + 0.01) {
+    gl_FragColor.rgb *= 0.5;
+  }
 }
 ```
 
-作ったFrame BufferをbindするとそのFrameへの書き込みが開始します。bindを解除するとデフォルトのFrame Buffer(スクリーン)に描画されます。
-`gl.viewport`という関数が登場しましたが、これは描画対象の矩形領域を指定する関数です。
-描画対象のFrameの大きさに合わせて描画対象領域も変えているというわけですね。
+### ダメ出し
+一応このデモではうまく動くように見えると思いますが、この技術に関しては弱点が結構いろいろあります。
 
-```glsl
-attribute vec3 position;
-attribute vec2 uv;
+- Shadow Cameraで映した範囲の情報しか使えないため、あまり大きな範囲に影を落とせない
+  - 無理に範囲を大きくすると解像度が落ちて影がガタガタになったり、意味不明なジャギーが出たりする  
+- 点光源にするとこのままでは使えない(カメラで全方位は映せない)
+- 影がくっきりしているが、現実の影がもっとぼやける
+  - Soft Shadowで検索するといくつか手法は出てくる
+-  単純に全ての物体を2回描画することになうため、重い。
 
-varying vec2 vUV;
-
-void main() {
-    gl_Position = vec4(position, 1);
-    vUV = uv;
-}
-```
-```glsl
-precision mediump float;
-
-varying vec2 vUV;
-uniform sampler2D tex;
-
-void main() {
-    vec2 uv = vUV;
-    uv.x = uv.x * .5 + .5;
-    gl_FragColor = texture2D(tex, uv);
-    gl_FragColor.rgb = vec3(1) - gl_FragColor.rgb;
-}
-```
-四角形は3Dとかガン無視で普通に画面の右半分に置きたかったので、カメラ用の行列などは掛けずに直に`gl_Position`に流しています。
-色の反転は元の色を1から引いているだけですね。
+影の技術はほんとうに$\dagger$ 闇 $\dagger$なので、はやく「これしかない！」という手法が確立されるのを期待しています。
